@@ -1,0 +1,58 @@
+# Dependencies and build outputs
+/node_modules/
+**/node_modules/
+/BE/target/
+/clinic-management-fe/.next/
+/tmp/
+
+# IDE and tool state
+/.idea/
+/.vscode/
+/.agents/
+/.ai/
+*.iml
+
+# Local environment and secret-bearing configuration
+.env
+.env.*
+!.env.example
+/clinic-management-fe/.env.local
+/clinic-management-fe/src/env.local
+/BE/src/main/resources/application.local.properties
+/BE/src/test/resources/application.local.properties
+
+# Runtime databases, backups, exports, and local test data
+/BE/data/
+/BE/db-export/
+/BE/db-cleanup-snapshots/
+/BE/tmp/
+/BE/tmp-h2/
+/database-exports/
+*.mv.db
+*.trace.db
+*.lock.db
+*.temp.db
+/BE/invoices.json
+/BE/temp_login_output.json
+/accounts_list.md
+
+# Logs and generated diagnostics
+*.log
+*.err.log
+*.out.log
+/BE/*_output*.txt
+/BE/build*.txt
+/BE/compile_errors*.txt
+/BE/boot_log.txt
+/BE/tmp-classpath.txt
+/BE/CheckPwd.java
+
+# Documentation containing captured authentication tokens
+/BE/docs/AUTH_FLOW_UPDATE.md
+/BE/docs/FRONTEND_API_CHANGES.md
+/BE/docs/FRONTEND_INTEGRATION_GUIDE.md
+/BE/docs/QUICK_TEST_GUIDE.md
+/clinic-management-fe/API_TESTING_GUIDE.md
+
+# Local archives
+*.tar.gz

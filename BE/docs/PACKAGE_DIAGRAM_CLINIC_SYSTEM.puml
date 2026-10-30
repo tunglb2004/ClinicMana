@@ -1,0 +1,138 @@
+@startuml
+title Package Diagram - Clinic Management System
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+
+package "Clinic Management System" as system {
+  package "Frontend Module\nclinic-management-fe" as frontend {
+    package "app" as feApp
+    package "src/components" as feComponents
+    package "src/contexts" as feContexts
+    package "src/hooks" as feHooks
+    package "src/services" as feServices
+    package "src/store" as feStore
+    package "src/lib" as feLib
+    package "src/types" as feTypes
+    package "src/config" as feConfig
+    package "public" as fePublic
+  }
+
+  package "Backend Module\nBE" as backend {
+    package "g2.be.config" as beConfig
+    package "g2.be.controller" as beController
+    package "g2.be.dto" as beDto {
+      package "request" as beDtoRequest
+      package "response" as beDtoResponse
+    }
+    package "g2.be.service" as beService
+    package "g2.be.repository" as beRepository
+    package "g2.be.entity" as beEntity
+    package "g2.be.security" as beSecurity
+    package "g2.be.exception" as beException
+    package "g2.be.util" as beUtil
+  }
+
+  package "External Integrations" as ext {
+    package "SePay\nQR Payment / Webhook" as extSepay
+    package "Cloudinary\nMedia Storage" as extCloudinary
+    package "Mock BHYT / Citizen Insurance\nInsurance Simulation" as extInsurance
+  }
+}
+
+feApp ..> feComponents : renders UI
+feApp ..> feContexts : provides state
+feApp ..> feHooks : uses hooks
+feApp ..> feServices : calls API
+feApp ..> feStore : reads state
+feApp ..> feLib : shared helpers
+feApp ..> feTypes : shared types
+feComponents ..> feHooks : UI logic
+feComponents ..> feLib : helper functions
+feServices ..> feConfig : runtime config
+feServices ..> feTypes : DTO typing
+feStore ..> feTypes : typed state
+
+feServices ..> beController : REST / JSON API
+
+beController ..> beDtoRequest : consumes
+beController ..> beDtoResponse : returns
+beController ..> beService : delegates
+beController ..> beUtil : wraps responses
+beController ..> beException : error handling
+
+beService ..> beRepository : persistence
+beService ..> beEntity : business rules
+beService ..> beDtoRequest : input mapping
+beService ..> beDtoResponse : output mapping
+beService ..> beUtil : helper logic
+beService ..> beException : throws domain errors
+
+beRepository ..> beEntity : JPA mapping
+beSecurity ..> beRepository : loads users / tokens
+beSecurity ..> beEntity : auth context
+beConfig ..> beSecurity : security filter chain
+beConfig ..> beController : web configuration
+beConfig ..> extCloudinary : configures client
+beConfig ..> extInsurance : configures rules
+beService ..> extSepay : QR payment / webhook
+beService ..> extCloudinary : upload result files
+beService ..> extInsurance : verify insurance / calculate coverage
+beRepository ..> extInsurance : mock insurance datasets
+
+note right of feServices
+Representative modules:
+- auth service
+- appointment service
+- medical record service
+- payment service
+end note
+
+note right of beController
+Representative packages expose REST endpoints:
+- AuthController
+- AppointmentController
+- PaymentController
+- ServiceOrderController
+- MedicalRecordController
+- FinancialController
+- ReviewController
+end note
+
+note right of beSecurity
+Security package contains:
+- JwtAuthenticationFilter
+- JwtUtil
+- UserDetailsImpl
+- UserDetailsServiceImpl
+end note
+
+note right of extSepay
+Integrated mainly through:
+- PaymentService
+- PaymentController webhook
+end note
+
+note right of extCloudinary
+Integrated mainly through:
+- CloudinaryConfig
+- CloudinaryService
+- ServiceOrderService upload flow
+end note
+
+note right of extInsurance
+Integrated mainly through:
+- ClinicInsuranceConfig
+- CitizenInsuranceService
+- MockCitizenDataRepository
+- MockInsuranceServiceRepository
+- MockServiceCatalogRepository
+end note
+
+note bottom of beRepository
+Repositories use Spring Data JPA
+against entities in g2.be.entity.
+end note
+
+@enduml

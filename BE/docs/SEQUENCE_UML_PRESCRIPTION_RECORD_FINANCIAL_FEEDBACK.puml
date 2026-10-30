@@ -1,0 +1,785 @@
+' ===================================================================
+' Sequence diagrams cho 12 chức năng:
+'   23-25: Prescription (Create, Update, Export)
+'   26-29: Medical Record (History, Details, Status, Confirm)
+'   30-31: Financial (List, Details)
+'   32-34: Feedback (List, Details, Send Response)
+' ===================================================================
+
+
+' ======================== CHỨC NĂNG 23 ========================
+@startuml
+title 23. Tạo đơn thuốc (Create Prescription)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ / Y tá" as Actor
+participant "PrescriptionController" as Controller
+participant "PrescriptionService" as Service
+participant "MedicalRecordRepository" as MRRepo
+participant "PrescriptionRepository" as PresRepo
+participant "PrescriptionDetailRepository" as DetailRepo
+
+Actor -> Controller : POST /api/medical-examination/prescriptions/issue\n(PrescriptionRequest)
+activate Controller
+
+Controller -> Service : issue(request)
+activate Service
+
+Service -> MRRepo : findById(request.medicalRecordId)
+activate MRRepo
+MRRepo --> Service : Optional<MedicalRecord>
+deactivate MRRepo
+
+alt Không tìm thấy bệnh án
+  Service --> Controller : AppException(MEDICAL_RECORD_NOT_FOUND)
+  Controller --> Actor : 404 Error
+else Trạng thái ≠ EXAMINING
+  Service --> Controller : AppException(MEDICAL_RECORD_NOT_EXAMINING)
+  Controller --> Actor : 400 Error
+end
+
+Service -> Service : generateId("PRES-" + UUID 8 ký tự)
+
+Service -> PresRepo : save(prescription)
+activate PresRepo
+PresRepo --> Service : Prescription
+deactivate PresRepo
+
+loop Mỗi chi tiết thuốc trong request.details
+  Service -> Service : Tạo PrescriptionDetail\n(medicineName, dosage, quantity)
+end
+
+Service -> DetailRepo : saveAll(details)
+activate DetailRepo
+DetailRepo --> Service : List<PrescriptionDetail>
+deactivate DetailRepo
+
+Service -> Service : mapToResponse(prescription)
+Service --> Controller : PrescriptionResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<PrescriptionResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 24 ========================
+@startuml
+title 24. Cập nhật đơn thuốc (Update Prescription)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ / Y tá" as Actor
+participant "PrescriptionController" as Controller
+participant "PrescriptionService" as Service
+participant "PrescriptionRepository" as PresRepo
+participant "PrescriptionDetailRepository" as DetailRepo
+
+Actor -> Controller : PUT /api/medical-examination/prescriptions/update-detail/{id}\n(PrescriptionRequest)
+activate Controller
+
+Controller -> Service : updateDetail(id, request)
+activate Service
+
+Service -> PresRepo : findById(id)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+alt Không tìm thấy đơn thuốc
+  Service --> Controller : AppException(PRESCRIPTION_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> Service : Kiểm tra MedicalRecord.status\n≠ FINISHED, ≠ CANCELLED
+
+alt Trạng thái không hợp lệ
+  Service --> Controller : AppException(MEDICAL_RECORD_ALREADY_FINISHED)
+  Controller --> Actor : 400 Error
+end
+
+Service -> DetailRepo : deleteByPrescription(prescription)
+activate DetailRepo
+DetailRepo --> Service : void
+deactivate DetailRepo
+
+loop Mỗi chi tiết thuốc mới
+  Service -> Service : Tạo PrescriptionDetail mới\n(medicineName, dosage, quantity)
+end
+
+Service -> DetailRepo : saveAll(newDetails)
+activate DetailRepo
+DetailRepo --> Service : List<PrescriptionDetail>
+deactivate DetailRepo
+
+Service -> Service : Cập nhật notes (nếu có)
+
+Service -> PresRepo : save(prescription)
+activate PresRepo
+PresRepo --> Service : Prescription
+deactivate PresRepo
+
+Service -> Service : mapToResponse(prescription)
+Service --> Controller : PrescriptionResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<PrescriptionResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 25 ========================
+@startuml
+title 25. Xuất đơn thuốc (Export Prescription)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ / Y tá" as Actor
+participant "PrescriptionController" as Controller
+participant "PrescriptionService" as Service
+participant "PrescriptionRepository" as PresRepo
+
+Actor -> Controller : GET /api/medical-examination/prescriptions/export-document/{id}
+activate Controller
+
+Controller -> Service : generateExportDocument(id)
+activate Service
+
+Service -> PresRepo : findById(id)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+alt Không tìm thấy đơn thuốc
+  Service --> Controller : AppException(PRESCRIPTION_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> Service : Tạo HTML Header\n(Tên phòng khám, địa chỉ, SĐT)
+
+Service -> Service : Lấy thông tin bệnh nhân\n(prescription.medicalRecord.appointment.patient)
+
+Service -> Service : Lấy thông tin bác sĩ\n(prescription.medicalRecord.doctor)
+
+Service -> Service : Lấy chẩn đoán\n(prescription.medicalRecord.diagnosis)
+
+loop Mỗi PrescriptionDetail
+  Service -> Service : Tạo dòng bảng HTML\n(STT, Tên thuốc, Liều dùng, Số lượng)
+end
+
+Service -> Service : Tạo footer\n(Ngày xuất, Chữ ký bác sĩ)
+
+Service --> Controller : HTML String
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<String> (HTML document)
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 26 ========================
+@startuml
+title 26. Xem lịch sử khách hàng đã khám (View Examined Customer History List)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Người dùng" as Actor
+participant "MedicalRecordController" as Controller
+participant "MedicalRecordService" as Service
+participant "PatientRepository" as PatientRepo
+participant "MedicalRecordRepository" as MRRepo
+
+== Luồng 1: Bệnh nhân xem lịch sử của mình ==
+
+Actor -> Controller : GET /api/medical-examination/records/my-history\n(?keyword, page, size)
+activate Controller
+
+Controller -> Service : getMyHistory(userId, keyword, pageable)
+activate Service
+
+Service -> PatientRepo : findByUser_UserId(userId)
+activate PatientRepo
+PatientRepo --> Service : Optional<Patient>
+deactivate PatientRepo
+
+alt Không tìm thấy bệnh nhân
+  Service --> Controller : AppException(PATIENT_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> Service : getPatientHistory(patient.patientId, keyword, pageable)
+
+Service -> MRRepo : findHistoryWithFilter(\n  patientId, ["FINISHED","COMPLETED"],\n  keyword, pageable)
+activate MRRepo
+MRRepo --> Service : Page<MedicalRecord>
+deactivate MRRepo
+
+loop Mỗi MedicalRecord
+  Service -> Service : mapToResponse(record)\n→ MedicalRecordResponse
+end
+
+Service --> Controller : Page<MedicalRecordResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<Page<MedicalRecordResponse>>
+deactivate Controller
+
+== Luồng 2: Nhân viên xem lịch sử bệnh nhân ==
+
+Actor -> Controller : GET /api/medical-examination/records/get-patient-history/{patientId}\n(?keyword, page, size)
+activate Controller
+
+Controller -> Service : getPatientHistory(patientId, keyword, pageable)
+activate Service
+
+Service -> MRRepo : findHistoryWithFilter(\n  patientId, ["FINISHED","COMPLETED"],\n  keyword, pageable)
+activate MRRepo
+MRRepo --> Service : Page<MedicalRecord>
+deactivate MRRepo
+
+loop Mỗi MedicalRecord
+  Service -> Service : mapToResponse(record)
+end
+
+Service --> Controller : Page<MedicalRecordResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<Page<MedicalRecordResponse>>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 27 ========================
+@startuml
+title 27. Xem chi tiết bệnh án (View Medical Record Details)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Người dùng" as Actor
+participant "MedicalRecordController" as Controller
+participant "MedicalRecordService" as Service
+participant "MedicalRecordRepository" as MRRepo
+participant "PatientRepository" as PatientRepo
+participant "PrescriptionRepository" as PresRepo
+
+== Luồng 1: Bệnh nhân xem chi tiết của mình ==
+
+Actor -> Controller : GET /api/medical-examination/records/my-detail/{id}
+activate Controller
+
+Controller -> Service : getMyDetail(userId, recordId)
+activate Service
+
+Service -> PatientRepo : findByUser_UserId(userId)
+activate PatientRepo
+PatientRepo --> Service : Optional<Patient>
+deactivate PatientRepo
+
+Service -> MRRepo : findById(recordId)
+activate MRRepo
+MRRepo --> Service : Optional<MedicalRecord>
+deactivate MRRepo
+
+alt Bệnh án không thuộc bệnh nhân này
+  Service --> Controller : AppException(UNAUTHORIZED)
+  Controller --> Actor : 403 Error
+end
+
+Service -> PresRepo : findByMedicalRecord(record)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+Service -> Service : mapToDetailResponse(record, prescription)
+Service --> Controller : MedicalRecordDetailResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<MedicalRecordDetailResponse>
+deactivate Controller
+
+== Luồng 2: Bác sĩ / Y tá xem chi tiết ==
+
+Actor -> Controller : GET /api/medical-examination/records/view-detail/{id}
+activate Controller
+
+Controller -> Service : viewDetail(id)
+activate Service
+
+Service -> MRRepo : findById(id)
+activate MRRepo
+MRRepo --> Service : Optional<MedicalRecord>
+deactivate MRRepo
+
+alt Không tìm thấy
+  Service --> Controller : AppException(MEDICAL_RECORD_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> PresRepo : findByMedicalRecord(record)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+Service -> Service : mapToDetailResponse(record, prescription)\n→ Patient info, Doctor info, Diagnosis,\n   Prescription + Details (nếu có)
+Service --> Controller : MedicalRecordDetailResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<MedicalRecordDetailResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 28 ========================
+@startuml
+title 28. Chuyển trạng thái bệnh án (Change Medical Record Status)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ / Y tá" as Actor
+participant "MedicalRecordController" as Controller
+participant "MedicalRecordService" as Service
+participant "MedicalRecordRepository" as MRRepo
+participant "PrescriptionRepository" as PresRepo
+
+Actor -> Controller : PATCH /api/medical-examination/records/\nupdate-examination-status/{id}\n(StatusUpdateRequest { newStatus })
+activate Controller
+
+Controller -> Service : updateExaminationStatus(id, newStatus)
+activate Service
+
+Service -> MRRepo : findById(id)
+activate MRRepo
+MRRepo --> Service : Optional<MedicalRecord>
+deactivate MRRepo
+
+alt Không tìm thấy
+  Service --> Controller : AppException(MEDICAL_RECORD_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> Service : Kiểm tra chuyển trạng thái hợp lệ
+
+note right of Service
+  Quy tắc chuyển trạng thái:
+  ✅ WAITING → EXAMINING
+  ✅ WAITING → CANCELLED
+  ✅ EXAMINING → FINISHED
+  ✅ EXAMINING → CANCELLED
+  ❌ Các trường hợp khác → Error
+end note
+
+alt Chuyển trạng thái không hợp lệ
+  Service --> Controller : AppException(INVALID_STATUS_TRANSITION)
+  Controller --> Actor : 400 Error
+end
+
+Service -> Service : record.setStatus(newStatus)
+
+Service -> MRRepo : save(record)
+activate MRRepo
+MRRepo --> Service : MedicalRecord
+deactivate MRRepo
+
+Service -> PresRepo : findByMedicalRecord(record)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+Service -> Service : mapToDetailResponse(record, prescription)
+Service --> Controller : MedicalRecordDetailResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<MedicalRecordDetailResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 29 ========================
+@startuml
+title 29. Xác nhận kết quả khám (Confirm Examination Result)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ" as Actor
+participant "MedicalRecordController" as Controller
+participant "MedicalRecordService" as Service
+participant "MedicalRecordRepository" as MRRepo
+participant "PrescriptionRepository" as PresRepo
+
+Actor -> Controller : PATCH /api/medical-examination/records/\nconfirm-final-result/{id}
+activate Controller
+
+Controller -> Service : confirmFinalResult(id, currentUserId)
+activate Service
+
+Service -> MRRepo : findById(id)
+activate MRRepo
+MRRepo --> Service : Optional<MedicalRecord>
+deactivate MRRepo
+
+alt Không tìm thấy
+  Service --> Controller : AppException(MEDICAL_RECORD_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+alt Trạng thái hiện tại ≠ EXAMINING
+  Service --> Controller : AppException(INVALID_STATUS_TRANSITION)
+  Controller --> Actor : 400 Error
+end
+
+Service -> PresRepo : findByMedicalRecord(record)
+activate PresRepo
+PresRepo --> Service : Optional<Prescription>
+deactivate PresRepo
+
+alt Chưa có đơn thuốc
+  Service --> Controller : AppException(PRESCRIPTION_REQUIRED_FOR_CONFIRM)
+  Controller --> Actor : 400 Error\n"Cần tạo đơn thuốc trước khi xác nhận"
+end
+
+Service -> Service : record.setStatus("FINISHED")
+
+Service -> MRRepo : save(record)
+activate MRRepo
+MRRepo --> Service : MedicalRecord
+deactivate MRRepo
+
+Service -> Service : mapToDetailResponse(record, prescription)
+Service --> Controller : MedicalRecordDetailResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<MedicalRecordDetailResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 30 ========================
+@startuml
+title 30. Xem danh sách tài chính (View Financial List)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Thu ngân" as Actor
+participant "FinancialController" as Controller
+participant "FinancialService" as Service
+participant "AppointmentRepository" as ApptRepo
+participant "ServiceOrderRepository" as SORepo
+participant "InvoiceRepository" as InvRepo
+
+== Luồng 1: Danh sách chưa thanh toán ==
+
+Actor -> Controller : GET /api/financial/unpaid-records\n(?keyword, page, size)
+activate Controller
+
+Controller -> Service : getUnpaidRecords(page, size, keyword)
+activate Service
+
+Service -> Service : PageRequest.of(page-1, size)
+
+Service -> ApptRepo : findUnpaidAppointments(keyword, pageable)
+activate ApptRepo
+ApptRepo --> Service : Page<Appointment>
+deactivate ApptRepo
+
+loop Mỗi Appointment
+  Service -> Service : Lấy patient info, services
+  Service -> Service : Tính tổng serviceFee
+  Service -> Service : Map → FinancialResponse\n(invoiceId=appointmentId, patientName,\n totalServiceFee, serviceSummary)
+end
+
+Service --> Controller : PageResponse<FinancialResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK
+deactivate Controller
+
+== Luồng 2: Danh sách cần thanh toán bổ sung ==
+
+Actor -> Controller : GET /api/financial/supplement-records\n(?keyword, page, size)
+activate Controller
+
+Controller -> Service : getSupplementPendingRecords(page, size, keyword)
+activate Service
+
+Service -> SORepo : findSupplementPendingRecords(keyword, pageable)
+activate SORepo
+note right: orderType=SUPPLEMENT\nstatus=PENDING\ninvoiceId IS NULL
+SORepo --> Service : Page<UnpaidRecordProjection>
+deactivate SORepo
+
+loop Mỗi Projection
+  Service -> Service : Map → FinancialResponse
+end
+
+Service --> Controller : PageResponse<FinancialResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK
+deactivate Controller
+
+== Luồng 3: Danh sách tất cả hóa đơn ==
+
+Actor -> Controller : GET /api/financial/invoices\n(?keyword, paymentStatus, page, size)
+activate Controller
+
+Controller -> Service : getInvoices(page, size, keyword, paymentStatus)
+activate Service
+
+Service -> InvRepo : findByFilters(keyword, paymentStatus, pageable)
+activate InvRepo
+InvRepo --> Service : Page<Invoice>
+deactivate InvRepo
+
+loop Mỗi Invoice
+  Service -> SORepo : findByInvoiceId(invoice.invoiceId)
+  activate SORepo
+  SORepo --> Service : List<ServiceOrder>
+  deactivate SORepo
+
+  Service -> Service : Lọc bỏ CANCELLED orders
+  Service -> Service : Tạo serviceSummary (tên dịch vụ nối ", ")
+  Service -> Service : Map → FinancialResponse
+end
+
+Service --> Controller : PageResponse<FinancialResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 31 ========================
+@startuml
+title 31. Xem chi tiết tài chính (View Financial Details)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Thu ngân" as Actor
+participant "FinancialController" as Controller
+participant "FinancialService" as Service
+participant "InvoiceRepository" as InvRepo
+participant "ServiceOrderRepository" as SORepo
+
+== Luồng 1: Chi tiết hóa đơn ==
+
+Actor -> Controller : GET /api/financial/invoices/{invoiceId}
+activate Controller
+
+Controller -> Service : getInvoiceDetail(invoiceId)
+activate Service
+
+Service -> InvRepo : findById(invoiceId)
+activate InvRepo
+InvRepo --> Service : Optional<Invoice>
+deactivate InvRepo
+
+alt Không tìm thấy hóa đơn
+  Service --> Controller : AppException(INVOICE_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> SORepo : findByInvoiceId(invoiceId)
+activate SORepo
+SORepo --> Service : List<ServiceOrder>
+deactivate SORepo
+
+Service -> Service : Lọc bỏ CANCELLED orders
+Service -> Service : Lấy thông tin bệnh nhân\n(invoice → medicalRecord → appointment → patient)
+Service -> Service : Tạo danh sách dịch vụ\n(serviceName, price, status, resultNote)
+
+Service -> Service : Map → FinancialDetailResponse\n{ invoiceId, patientName, patientPhone,\n  healthInsuranceNumber, totalServiceFee,\n  insurancePaid, customerPaid,\n  paymentStatus, paymentMethod,\n  services[], createdAt }
+
+Service --> Controller : FinancialDetailResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<FinancialDetailResponse>
+deactivate Controller
+
+== Luồng 2: Chi tiết phiếu thu ==
+
+Actor -> Controller : GET /api/financial/invoices/{invoiceId}/receipt
+activate Controller
+
+Controller -> Service : getReceiptDetail(invoiceId)
+activate Service
+
+Service -> InvRepo : findById(invoiceId)
+activate InvRepo
+InvRepo --> Service : Optional<Invoice>
+deactivate InvRepo
+
+alt receiptStatus ≠ ISSUED
+  Service --> Controller : AppException(RECEIPT_NOT_ISSUED)
+  Controller --> Actor : 400 Error
+end
+
+Service -> SORepo : findByInvoiceId(invoiceId)
+activate SORepo
+SORepo --> Service : List<ServiceOrder>
+deactivate SORepo
+
+Service -> Service : Map → ReceiptResponse\n{ receiptNumber (PT-yyyyMMdd-XXXX),\n  eInvoiceCode, eInvoiceUrl,\n  receiptIssuedAt, patientName,\n  services[], totalFee, insurancePaid,\n  customerPaid }
+
+Service --> Controller : ReceiptResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<ReceiptResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 32 ========================
+@startuml
+title 32. Xem danh sách phản hồi (View Feedback List)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Người dùng" as Actor
+participant "ReviewController" as Controller
+participant "ReviewService" as Service
+participant "ReviewRepository" as ReviewRepo
+
+== Luồng 1: Tất cả đánh giá ==
+
+Actor -> Controller : GET /api/reviews\n(?page, size)
+activate Controller
+
+Controller -> Service : getAllReviews(page, size)
+activate Service
+
+Service -> Service : PageRequest.of(page-1, size)
+
+Service -> ReviewRepo : findAllActive(pageable)
+activate ReviewRepo
+note right: WHERE isDeleted = false\nORDER BY createdAt DESC
+ReviewRepo --> Service : Page<Review>
+deactivate ReviewRepo
+
+Service -> Service : toPageResponse(page)\n→ Map mỗi Review thành ReviewResponse\n  { reviewId, patientName, doctorName,\n    rating, comment, replyContent,\n    replyByName, replyAt, createdAt }
+
+Service --> Controller : PageResponse<ReviewResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<PageResponse<ReviewResponse>>
+deactivate Controller
+
+== Luồng 2: Đánh giá theo bác sĩ ==
+
+Actor -> Controller : GET /api/reviews/doctor/{doctorId}\n(?page, size)
+activate Controller
+
+Controller -> Service : getReviewsByDoctor(doctorId, page, size)
+activate Service
+
+Service -> ReviewRepo : findByDoctorId(doctorId, pageable)
+activate ReviewRepo
+note right: WHERE doctor.doctorId = ?\nAND isDeleted = false
+ReviewRepo --> Service : Page<Review>
+deactivate ReviewRepo
+
+Service -> Service : toPageResponse(page)
+Service --> Controller : PageResponse<ReviewResponse>
+deactivate Service
+
+Controller --> Actor : 200 OK
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 33 ========================
+@startuml
+title 33. Xem chi tiết phản hồi (View Feedback Details)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Người dùng" as Actor
+participant "ReviewController" as Controller
+participant "ReviewService" as Service
+participant "ReviewRepository" as ReviewRepo
+
+Actor -> Controller : GET /api/reviews/{reviewId}
+activate Controller
+
+Controller -> Service : getReviewById(reviewId)
+activate Service
+
+Service -> ReviewRepo : findByReviewIdAndIsDeletedFalse(reviewId)
+activate ReviewRepo
+ReviewRepo --> Service : Optional<Review>
+deactivate ReviewRepo
+
+alt Không tìm thấy hoặc đã bị xóa
+  Service --> Controller : AppException(REVIEW_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+Service -> Service : Map → ReviewResponse\n{ reviewId, rating (1-5), comment,\n  patientName, patientAvatar,\n  doctorName, doctorDepartment,\n  appointmentDate,\n  replyContent, replyByName, replyAt,\n  createdAt, updatedAt }
+
+Service --> Controller : ReviewResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<ReviewResponse>
+deactivate Controller
+@enduml
+
+
+' ======================== CHỨC NĂNG 34 ========================
+@startuml
+title 34. Gửi phản hồi (Send Response to Feedback)
+skinparam monochrome true
+skinparam shadowing false
+
+actor "Bác sĩ / Admin" as Actor
+participant "ReviewController" as Controller
+participant "ReviewService" as Service
+participant "ReviewRepository" as ReviewRepo
+participant "UserRepository" as UserRepo
+
+Actor -> Controller : PUT /api/reviews/{reviewId}/reply\n(ReplyReviewRequest { replyContent })
+activate Controller
+
+Controller -> Controller : Lấy userId từ\nSecurityContextHolder
+
+Controller -> Service : replyReview(reviewId, request, userId)
+activate Service
+
+Service -> ReviewRepo : findByReviewIdAndIsDeletedFalse(reviewId)
+activate ReviewRepo
+ReviewRepo --> Service : Optional<Review>
+deactivate ReviewRepo
+
+alt Không tìm thấy đánh giá
+  Service --> Controller : AppException(REVIEW_NOT_FOUND)
+  Controller --> Actor : 404 Error
+end
+
+alt Đã có phản hồi trước đó
+  Service -> Service : review.getReplyContent() != null?
+  Service --> Controller : AppException(REVIEW_ALREADY_REPLIED)
+  Controller --> Actor : 400 Error\n"Đánh giá này đã được phản hồi"
+end
+
+Service -> UserRepo : findById(userId)
+activate UserRepo
+UserRepo --> Service : Optional<User>
+deactivate UserRepo
+
+Service -> Service : review.setReplyContent(request.replyContent)
+Service -> Service : review.setReplyBy(user)
+Service -> Service : review.setReplyAt(LocalDateTime.now())
+
+Service -> ReviewRepo : save(review)
+activate ReviewRepo
+ReviewRepo --> Service : Review
+deactivate ReviewRepo
+
+Service -> Service : Map → ReviewResponse
+
+Service --> Controller : ReviewResponse
+deactivate Service
+
+Controller --> Actor : 200 OK\nApiResponse<ReviewResponse>
+deactivate Controller
+@enduml

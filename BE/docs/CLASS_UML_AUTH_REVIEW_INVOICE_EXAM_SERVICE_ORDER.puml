@@ -1,0 +1,1933 @@
+@startuml
+title 7. Đăng nhập (Login)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class AuthController <<RestController>> {
+  + login(request) : LoginResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class AuthService <<Service>> {
+  + login(request) : LoginResponse
+}
+class RefreshTokenService <<Service>> {
+  + createRefreshToken(userId) : RefreshToken
+}
+class JwtUtil <<Component>> {
+  + generateAccessToken(authentication) : String
+}
+
+' ==================== REPOSITORY LAYER ====================
+class UserRepository <<Repository>> {
+  + findByEmailOrPhoneNumber(identifier) : User
+}
+class RefreshTokenRepository <<Repository>> {
+  + save(refreshToken) : RefreshToken
+}
+
+' ==================== ENTITY LAYER ====================
+class User <<Entity>> {
+  - userId : Long
+  - username : String
+  - email : String
+  - phoneNumber : String
+  - passwordHash : String
+  - mustChangePassword : Boolean
+}
+class Role <<Entity>> {
+  - roleId : Integer
+  - roleName : String
+}
+class RefreshToken <<Entity>> {
+  - id : Long
+  - token : String
+  - expiryDate : LocalDateTime
+}
+
+' ==================== ASSOCIATIONS ====================
+User "0..*" -- "0..*" Role : has >
+RefreshToken "*" --> "1" User : belongs to >
+UserRepository ..> User : manages
+RefreshTokenRepository ..> RefreshToken : manages
+
+' ==================== DEPENDENCIES ====================
+AuthController ..> AuthService : uses
+AuthService ..> UserRepository : uses
+AuthService ..> RefreshTokenService : uses
+AuthService ..> JwtUtil : uses
+RefreshTokenService ..> RefreshTokenRepository : uses
+@enduml
+
+@startuml
+title 8. Đăng ký tài khoản (Register)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class AuthController <<RestController>> {
+  + sendRegisterOtp(request) : OtpResponse
+  + register(request) : MessageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class AuthService <<Service>> {
+  + register(request) : void
+  + checkDuplicateBeforeRegister(email, phoneNumber) : void
+}
+class VerificationTokenService <<Service>> {
+  + createOtpToken(email, type) : VerificationToken
+  + verifyAndMarkAsUsed(email, otpCode, type) : VerificationToken
+}
+class EmailService <<Service>> {
+  + sendOtpEmail(email, otpCode, type) : void
+}
+
+' ==================== REPOSITORY LAYER ====================
+class UserRepository <<Repository>> {
+  + existsByEmail(email) : Boolean
+  + existsByPhoneNumber(phoneNumber) : Boolean
+  + existsByUsername(username) : Boolean
+  + save(user) : User
+}
+class RoleRepository <<Repository>> {
+  + findByRoleName(roleName) : Role
+}
+class PatientRepository <<Repository>> {
+  + existsByPatientId(patientId) : Boolean
+  + save(patient) : Patient
+}
+class VerificationTokenRepository <<Repository>> {
+  + deleteByEmailAndType(email, type) : void
+  + findByEmailAndOtpCodeAndTypeAndIsUsed(email, otpCode, type, isUsed) : VerificationToken
+}
+
+' ==================== ENTITY LAYER ====================
+class User <<Entity>> {
+  - userId : Long
+  - username : String
+  - email : String
+  - phoneNumber : String
+  - fullName : String
+}
+class Role <<Entity>> {
+  - roleId : Integer
+  - roleName : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - dateOfBirth : LocalDate
+}
+class VerificationToken <<Entity>> {
+  - id : Long
+  - email : String
+  - otpCode : String
+  - type : String
+  - expiryDate : LocalDateTime
+  - isUsed : Boolean
+}
+
+' ==================== ASSOCIATIONS ====================
+User "0..*" -- "0..*" Role : has >
+Patient "1" --> "1" User : profile of >
+UserRepository ..> User : manages
+RoleRepository ..> Role : manages
+PatientRepository ..> Patient : manages
+VerificationTokenRepository ..> VerificationToken : manages
+
+' ==================== DEPENDENCIES ====================
+AuthController ..> VerificationTokenService : uses
+AuthController ..> EmailService : uses
+AuthController ..> AuthService : uses
+AuthService ..> VerificationTokenService : verifies otp
+AuthService ..> UserRepository : uses
+AuthService ..> RoleRepository : uses
+AuthService ..> PatientRepository : uses
+VerificationTokenService ..> VerificationTokenRepository : uses
+@enduml
+
+@startuml
+title 9. Đổi mật khẩu (Change Password)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class UserController <<RestController>> {
+  + changePassword(request) : MessageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class UserService <<Service>> {
+  + changePassword(userId, request) : MessageResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class UserRepository <<Repository>> {
+  + findById(userId) : User
+  + save(user) : User
+}
+
+' ==================== ENTITY LAYER ====================
+class User <<Entity>> {
+  - userId : Long
+  - email : String
+  - passwordHash : String
+  - mustChangePassword : Boolean
+}
+
+' ==================== ASSOCIATIONS ====================
+UserRepository ..> User : manages
+
+' ==================== DEPENDENCIES ====================
+UserController ..> UserService : uses
+UserService ..> UserRepository : uses
+@enduml
+
+@startuml
+title 10. Quên mật khẩu (Forget Password)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class AuthController <<RestController>> {
+  + forgotPassword(request) : MessageResponse
+  + resetPassword(request) : MessageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class UserService <<Service>> {
+  + forgotPassword(email) : MessageResponse
+  + resetPassword(request) : MessageResponse
+}
+class EmailService <<Service>> {
+  + sendOtpEmail(email, otpCode, type) : void
+}
+
+' ==================== REPOSITORY LAYER ====================
+class UserRepository <<Repository>> {
+  + findByEmail(email) : User
+  + save(user) : User
+}
+
+' ==================== ENTITY LAYER ====================
+class User <<Entity>> {
+  - userId : Long
+  - email : String
+  - passwordHash : String
+}
+
+' ==================== ASSOCIATIONS ====================
+UserRepository ..> User : manages
+
+' ==================== DEPENDENCIES ====================
+AuthController ..> UserService : uses
+UserService ..> UserRepository : uses
+UserService ..> EmailService : sends otp
+@enduml
+
+@startuml
+title 11. Tạo đánh giá/nhận xét (Create Rating/Review)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ReviewController <<RestController>> {
+  + createReview(request) : ReviewResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ReviewService <<Service>> {
+  + createReview(request) : ReviewResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ReviewRepository <<Repository>> {
+  + save(review) : Review
+  + existsByAppointmentAndPatient(appointmentId, patientId) : Boolean
+}
+class PatientRepository <<Repository>> {
+  + findById(patientId) : Patient
+}
+class DoctorRepository <<Repository>> {
+  + findById(doctorId) : Doctor
+}
+class AppointmentRepository <<Repository>> {
+  + findById(appointmentId) : Appointment
+}
+
+' ==================== ENTITY LAYER ====================
+class Review <<Entity>> {
+  - reviewId : Long
+  - rating : Integer
+  - comment : String
+  - createdAt : LocalDateTime
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+  - status : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Review "*" --> "1" Patient : written by >
+Review "*" --> "0..1" Doctor : about >
+Review "*" --> "0..1" Appointment : for >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+ReviewRepository ..> Review : manages
+PatientRepository ..> Patient : manages
+DoctorRepository ..> Doctor : manages
+AppointmentRepository ..> Appointment : manages
+
+' ==================== DEPENDENCIES ====================
+ReviewController ..> ReviewService : uses
+ReviewService ..> ReviewRepository : uses
+ReviewService ..> PatientRepository : uses
+ReviewService ..> DoctorRepository : uses
+ReviewService ..> AppointmentRepository : uses
+@enduml
+
+@startuml
+title 12. Phản hồi đánh giá/nhận xét (Reply to Rating/Review)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ReviewController <<RestController>> {
+  + replyReview(reviewId, request) : ReviewResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ReviewService <<Service>> {
+  + replyReview(reviewId, request, userId) : ReviewResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ReviewRepository <<Repository>> {
+  + findByReviewIdAndIsDeletedFalse(reviewId) : Review
+  + save(review) : Review
+}
+class UserRepository <<Repository>> {
+  + findById(userId) : User
+}
+
+' ==================== ENTITY LAYER ====================
+class Review <<Entity>> {
+  - reviewId : Long
+  - comment : String
+  - replyContent : String
+  - replyAt : LocalDateTime
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+  - email : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Review "*" --> "1" Patient : written by >
+Review "*" --> "0..1" Doctor : about >
+Review "*" --> "0..1" Appointment : for >
+Review "*" --> "0..1" User : replied by >
+ReviewRepository ..> Review : manages
+UserRepository ..> User : manages
+
+' ==================== DEPENDENCIES ====================
+ReviewController ..> ReviewService : uses
+ReviewService ..> ReviewRepository : uses
+ReviewService ..> UserRepository : uses
+@enduml
+
+@startuml
+title 13. Xem danh sách hóa đơn thanh toán (View Payment Invoice List)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class CustomerInvoiceController <<RestController>> {
+  + getMyInvoices(paymentStatus, page, size) : PageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class FinancialService <<Service>> {
+  + getMyInvoices(userId, paymentStatus, page, size) : PageResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class InvoiceRepository <<Repository>> {
+  + findByPatientUserId(userId, paymentStatus, pageable) : Page<Invoice>
+}
+
+' ==================== ENTITY LAYER ====================
+class Invoice <<Entity>> {
+  - invoiceId : String
+  - totalServiceFee : BigDecimal
+  - insurancePaid : BigDecimal
+  - customerPaid : BigDecimal
+  - paymentStatus : String
+  - createdAt : LocalDateTime
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Invoice "*" --> "1" MedicalRecord : belongs to >
+MedicalRecord "*" --> "1" Patient : belongs to >
+Patient "1" -- "1" User : profile of >
+InvoiceRepository ..> Invoice : manages
+
+' ==================== DEPENDENCIES ====================
+CustomerInvoiceController ..> FinancialService : uses
+FinancialService ..> InvoiceRepository : uses
+@enduml
+
+@startuml
+title 14. Xem chi tiết thanh toán và phiếu thu (View Payment and Receipt Details)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class CustomerInvoiceController <<RestController>> {
+  + getMyInvoiceDetail(invoiceId) : ReceiptResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class FinancialService <<Service>> {
+  + getMyInvoiceDetail(userId, invoiceId) : ReceiptResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class InvoiceRepository <<Repository>> {
+  + existsByInvoiceIdAndPatientUserId(invoiceId, userId) : Boolean
+  + findById(invoiceId) : Invoice
+}
+class ServiceOrderRepository <<Repository>> {
+  + findByInvoiceId(invoiceId) : List<ServiceOrder>
+}
+
+' ==================== ENTITY LAYER ====================
+class Invoice <<Entity>> {
+  - invoiceId : String
+  - paymentStatus : String
+  - paymentMethod : String
+  - transactionId : String
+  - receiptNumber : String
+  - eInvoiceUrl : String
+}
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - status : String
+  - resultNote : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+
+' ==================== ASSOCIATIONS ====================
+Invoice "*" --> "1" MedicalRecord : belongs to >
+MedicalRecord "1" -- "1" Appointment : generated from >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+InvoiceRepository ..> Invoice : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+CustomerInvoiceController ..> FinancialService : uses
+FinancialService ..> InvoiceRepository : uses
+FinancialService ..> ServiceOrderRepository : uses
+@enduml
+
+@startuml
+title 15. Xuất phiếu thu (Issue Receipt)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class CustomerInvoiceController <<RestController>> {
+  + issueMyReceipt(invoiceId) : ReceiptResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class FinancialService <<Service>> {
+  + issueMyReceipt(userId, invoiceId) : ReceiptResponse
+  + issueReceipt(invoiceId) : ReceiptResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class InvoiceRepository <<Repository>> {
+  + existsByInvoiceIdAndPatientUserId(invoiceId, userId) : Boolean
+  + findById(invoiceId) : Invoice
+  + countByReceiptNumberStartingWith(prefix) : Long
+  + save(invoice) : Invoice
+}
+class ServiceOrderRepository <<Repository>> {
+  + findByInvoiceId(invoiceId) : List<ServiceOrder>
+}
+
+' ==================== ENTITY LAYER ====================
+class Invoice <<Entity>> {
+  - invoiceId : String
+  - paymentStatus : String
+  - receiptStatus : String
+  - receiptNumber : String
+  - eInvoiceCode : String
+  - eInvoiceUrl : String
+  - receiptIssuedAt : LocalDateTime
+}
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - status : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Invoice "*" --> "1" MedicalRecord : belongs to >
+MedicalRecord "*" --> "1" Patient : belongs to >
+Patient "1" -- "1" User : profile of >
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+InvoiceRepository ..> Invoice : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+CustomerInvoiceController ..> FinancialService : uses
+FinancialService ..> InvoiceRepository : uses
+FinancialService ..> ServiceOrderRepository : uses
+@enduml
+
+@startuml
+title 16. Xem danh sách bệnh nhân hôm nay (View Today's Patient List)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class QueueDisplayController <<RestController>> {
+  + getLobbyDashboard() : LobbyDashboardResponse
+  + getRoomQueueBoard(roomId) : RoomQueueBoardResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class QueueDisplayService <<Service>> {
+  + getLobbyDashboard() : LobbyDashboardResponse
+  + getRoomQueueBoard(roomId) : RoomQueueBoardResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class AppointmentRepository <<Repository>> {
+  + findActiveQueueByRoomId(roomId, appointmentDate) : List<Appointment>
+}
+class RoomRepository <<Repository>> {
+  + findByStatusAndIsDeletedFalse(status) : List<Room>
+  + findByRoomIdAndIsDeletedFalse(roomId) : Room
+}
+class DoctorRepository <<Repository>> {
+  + findByRoom_RoomId(roomId) : List<Doctor>
+}
+
+' ==================== ENTITY LAYER ====================
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - status : String
+  - queueNumber : Integer
+  - priorityScore : Integer
+  - waitingSince : LocalDateTime
+}
+class Room <<Entity>> {
+  - roomId : String
+  - roomName : String
+  - roomType : String
+  - location : String
+  - status : String
+  - baseAvgTime : Integer
+  - currentQueueLength : Integer
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+  - position : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+class Department <<Entity>> {
+  - deptId : Integer
+  - deptName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Appointment "*" --> "1" Patient : queued patient >
+Appointment "*" --> "0..1" Doctor : assigned doctor >
+Appointment "*" --> "0..1" Room : waiting at >
+Doctor "1" -- "1" User : profile of >
+Doctor "*" --> "1" Department : belongs to >
+Room "*" --> "1" Department : belongs to >
+AppointmentRepository ..> Appointment : manages
+RoomRepository ..> Room : manages
+DoctorRepository ..> Doctor : manages
+
+' ==================== DEPENDENCIES ====================
+QueueDisplayController ..> QueueDisplayService : uses
+QueueDisplayService ..> AppointmentRepository : uses
+QueueDisplayService ..> RoomRepository : uses
+QueueDisplayService ..> DoctorRepository : uses
+@enduml
+
+@startuml
+title 17. Xem chi tiết phiếu chỉ định khám (View Examination Order Details)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + getMyQueue(status, page, size) : PageResponse
+  + getMyQueueByAppointment(appointmentId) : List<ServiceOrderResponse>
+  + getAllOrders(status, page, size) : PageResponse
+  + getSupplementOrders(status, page, size) : PageResponse
+  + getServiceOrder(orderId) : ServiceOrderResponse
+  + getByRecord(recordId) : List<ServiceOrderResponse>
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + getMyQueue(userId, status, pageable) : Page<ServiceOrderResponse>
+  + getMyQueueByAppointment(userId, appointmentId) : List<ServiceOrderResponse>
+  + getAllOrders(status, pageable) : Page<ServiceOrderResponse>
+  + getSupplementOrders(status, pageable) : Page<ServiceOrderResponse>
+  + getServiceOrder(orderId) : ServiceOrderResponse
+  + getByRecord(recordId) : List<ServiceOrderResponse>
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ServiceOrderRepository <<Repository>> {
+  + findByRoomIdsAndDate(roomIds, queryDate, status, pageable) : Page<ServiceOrder>
+  + findByRoomIdsAndAppointmentIdAndDate(roomIds, appointmentId, queryDate) : List<ServiceOrder>
+  + findAllByOrderByCreatedAtDesc(pageable) : Page<ServiceOrder>
+  + findByStatusOrderByCreatedAtDesc(status, pageable) : Page<ServiceOrder>
+  + findByOrderTypeOrderByCreatedAtDesc(orderType, pageable) : Page<ServiceOrder>
+  + findByMedicalRecord_RecordId(recordId) : List<ServiceOrder>
+}
+class DoctorRepository <<Repository>> {
+  + findByUser_UserId(userId) : Doctor
+}
+class StaffScheduleRepository <<Repository>> {
+  + findByUser_UserIdAndWorkDate(userId, workDate) : List<StaffSchedule>
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - status : String
+  - orderType : String
+  - resultNote : String
+  - resultFileUrl : String
+  - createdAt : LocalDateTime
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - status : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class Room <<Entity>> {
+  - roomId : String
+  - roomName : String
+  - roomType : String
+}
+class StaffSchedule <<Entity>> {
+  - doctorScheduleId : Long
+  - workDate : LocalDate
+  - shiftName : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Appointment : from >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+Doctor "*" --> "0..1" Room : works in >
+StaffSchedule "*" --> "1" Room : assigned room >
+ServiceOrderRepository ..> ServiceOrder : manages
+DoctorRepository ..> Doctor : manages
+StaffScheduleRepository ..> StaffSchedule : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+ServiceOrderService ..> DoctorRepository : uses
+ServiceOrderService ..> StaffScheduleRepository : uses
+@enduml
+
+@startuml
+title 18. Tải lên kết quả khám (Upload Examination Result File)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + uploadResultFile(orderId, file) : ServiceOrderResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + uploadResultFile(orderId, file) : ServiceOrderResponse
+}
+class CloudinaryService <<Service>> {
+  + uploadFile(file, folder) : String
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ServiceOrderRepository <<Repository>> {
+  + findById(orderId) : ServiceOrder
+  + save(order) : ServiceOrder
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - resultFileUrl : String
+  - status : String
+  - createdAt : LocalDateTime
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+ServiceOrderService ..> CloudinaryService : uploads file
+@enduml
+
+@startuml
+title 19. Cập nhật kết quả khám (Update Examination Result)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + updateResult(orderId, request) : ServiceOrderResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + updateResult(orderId, resultNote) : ServiceOrderResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ServiceOrderRepository <<Repository>> {
+  + findById(orderId) : ServiceOrder
+  + save(order) : ServiceOrder
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - resultNote : String
+  - status : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+@enduml
+
+@startuml
+title 20. Xuất kết quả khám (Export Examination Result)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + exportPdf(orderId) : byte[]
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + exportPdf(orderId) : byte[]
+}
+class PdfExportService <<Service>> {
+  + generateServiceOrderPdf(order) : byte[]
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ServiceOrderRepository <<Repository>> {
+  + findById(orderId) : ServiceOrder
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - resultNote : String
+  - resultFileUrl : String
+  - status : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+ServiceOrderService ..> PdfExportService : renders pdf
+@enduml
+
+@startuml
+title 21. Chỉ định khám chuyên khoa (Order Specialty Examination)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + createServiceOrders(request) : List<ServiceOrderResponse>
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + createServiceOrders(actorUserId, request) : List<ServiceOrderResponse>
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findById(recordId) : MedicalRecord
+}
+class ServiceRepository <<Repository>> {
+  + findById(serviceId) : ServiceEntity
+}
+class ServiceOrderRepository <<Repository>> {
+  + save(order) : ServiceOrder
+}
+class DoctorRepository <<Repository>> {
+  + findByUser_UserId(userId) : Doctor
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - indicationNote : String
+  - status : String
+  - orderType : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - status : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+  - doctorType : String
+}
+class Department <<Entity>> {
+  - deptId : Integer
+  - deptName : String
+  - deptType : String
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+MedicalRecord "*" --> "0..1" Doctor : ordered by >
+ServiceEntity "*" --> "1" Department : belongs to >
+MedicalRecordRepository ..> MedicalRecord : manages
+ServiceRepository ..> ServiceEntity : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+DoctorRepository ..> Doctor : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> MedicalRecordRepository : uses
+ServiceOrderService ..> ServiceRepository : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+ServiceOrderService ..> DoctorRepository : validates actor
+@enduml
+
+@startuml
+title 22. Thêm phiếu chỉ định khám chuyên khoa bổ sung (Add Supplement Specialty Order)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ServiceOrderController <<RestController>> {
+  + createSupplementOrders(request) : List<ServiceOrderResponse>
+}
+
+' ==================== SERVICE LAYER ====================
+class ServiceOrderService <<Service>> {
+  + createSupplementOrders(actorUserId, request) : List<ServiceOrderResponse>
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findById(recordId) : MedicalRecord
+}
+class ServiceRepository <<Repository>> {
+  + findById(serviceId) : ServiceEntity
+}
+class ServiceOrderRepository <<Repository>> {
+  + save(order) : ServiceOrder
+}
+class DoctorRepository <<Repository>> {
+  + findByUser_UserId(userId) : Doctor
+}
+
+' ==================== ENTITY LAYER ====================
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - indicationNote : String
+  - status : String
+  - orderType : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - status : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+  - doctorType : String
+}
+class Department <<Entity>> {
+  - deptId : Integer
+  - deptName : String
+  - deptType : String
+}
+
+' ==================== ASSOCIATIONS ====================
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+MedicalRecord "*" --> "0..1" Doctor : ordered by >
+ServiceEntity "*" --> "1" Department : belongs to >
+MedicalRecordRepository ..> MedicalRecord : manages
+ServiceRepository ..> ServiceEntity : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+DoctorRepository ..> Doctor : manages
+
+' ==================== DEPENDENCIES ====================
+ServiceOrderController ..> ServiceOrderService : uses
+ServiceOrderService ..> MedicalRecordRepository : uses
+ServiceOrderService ..> ServiceRepository : uses
+ServiceOrderService ..> ServiceOrderRepository : uses
+ServiceOrderService ..> DoctorRepository : validates actor
+@enduml
+
+@startuml
+title 23. Tạo đơn thuốc (Create Prescription)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class PrescriptionController <<RestController>> {
+  + issue(request) : PrescriptionResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class PrescriptionService <<Service>> {
+  + issue(request) : PrescriptionResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class PrescriptionRepository <<Repository>> {
+  + save(prescription) : Prescription
+}
+class PrescriptionDetailRepository <<Repository>> {
+  + saveAll(details) : List<PrescriptionDetail>
+}
+class MedicalRecordRepository <<Repository>> {
+  + findById(medicalRecordId) : MedicalRecord
+}
+
+' ==================== ENTITY LAYER ====================
+class Prescription <<Entity>> {
+  - prescriptionId : String
+  - notes : String
+  - createdAt : LocalDateTime
+}
+class PrescriptionDetail <<Entity>> {
+  - id : Long
+  - medicineName : String
+  - dosage : String
+  - quantity : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+  - status : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Prescription "*" --> "1" MedicalRecord : belongs to >
+Prescription "1" -- "0..*" PrescriptionDetail : contains >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+PrescriptionRepository ..> Prescription : manages
+PrescriptionDetailRepository ..> PrescriptionDetail : manages
+MedicalRecordRepository ..> MedicalRecord : manages
+
+' ==================== DEPENDENCIES ====================
+PrescriptionController ..> PrescriptionService : uses
+PrescriptionService ..> PrescriptionRepository : uses
+PrescriptionService ..> PrescriptionDetailRepository : uses
+PrescriptionService ..> MedicalRecordRepository : uses
+@enduml
+
+@startuml
+title 24. Cập nhật đơn thuốc (Update Prescription)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class PrescriptionController <<RestController>> {
+  + updateDetail(id, request) : PrescriptionResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class PrescriptionService <<Service>> {
+  + updateDetail(id, request) : PrescriptionResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class PrescriptionRepository <<Repository>> {
+  + findById(id) : Prescription
+  + save(prescription) : Prescription
+}
+class PrescriptionDetailRepository <<Repository>> {
+  + deleteByPrescription(prescription) : void
+  + saveAll(details) : List<PrescriptionDetail>
+}
+
+' ==================== ENTITY LAYER ====================
+class Prescription <<Entity>> {
+  - prescriptionId : String
+  - notes : String
+  - createdAt : LocalDateTime
+}
+class PrescriptionDetail <<Entity>> {
+  - id : Long
+  - medicineName : String
+  - dosage : String
+  - quantity : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - status : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Prescription "*" --> "1" MedicalRecord : belongs to >
+Prescription "1" -- "0..*" PrescriptionDetail : contains >
+PrescriptionRepository ..> Prescription : manages
+PrescriptionDetailRepository ..> PrescriptionDetail : manages
+
+' ==================== DEPENDENCIES ====================
+PrescriptionController ..> PrescriptionService : uses
+PrescriptionService ..> PrescriptionRepository : uses
+PrescriptionService ..> PrescriptionDetailRepository : uses
+@enduml
+
+@startuml
+title 25. Xuất đơn thuốc (Export Prescription)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class PrescriptionController <<RestController>> {
+  + exportDocument(id) : String
+}
+
+' ==================== SERVICE LAYER ====================
+class PrescriptionService <<Service>> {
+  + generateExportDocument(id) : String
+}
+
+' ==================== REPOSITORY LAYER ====================
+class PrescriptionRepository <<Repository>> {
+  + findById(id) : Prescription
+}
+
+' ==================== ENTITY LAYER ====================
+class Prescription <<Entity>> {
+  - prescriptionId : String
+  - notes : String
+  - createdAt : LocalDateTime
+}
+class PrescriptionDetail <<Entity>> {
+  - id : Long
+  - medicineName : String
+  - dosage : String
+  - quantity : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Prescription "*" --> "1" MedicalRecord : belongs to >
+Prescription "1" -- "0..*" PrescriptionDetail : contains >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+PrescriptionRepository ..> Prescription : manages
+
+' ==================== DEPENDENCIES ====================
+PrescriptionController ..> PrescriptionService : uses
+PrescriptionService ..> PrescriptionRepository : uses
+@enduml
+
+@startuml
+title 26. Xem lịch sử khách hàng đã khám (View Examined Customer History List)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class MedicalRecordController <<RestController>> {
+  + getMyHistory(user, keyword, page, size) : PageResponse
+  + getPatientHistory(patientId, keyword, page, size) : PageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class MedicalRecordService <<Service>> {
+  + getMyHistory(userId, keyword, pageable) : Page<MedicalRecordResponse>
+  + getPatientHistory(patientId, keyword, pageable) : Page<MedicalRecordResponse>
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findHistoryWithFilter(patientId, statuses, keyword, pageable) : Page<MedicalRecord>
+}
+class PatientRepository <<Repository>> {
+  + findByUser_UserId(userId) : Patient
+}
+
+' ==================== ENTITY LAYER ====================
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+  - status : String
+  - createdAt : LocalDateTime
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+
+' ==================== ASSOCIATIONS ====================
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+MedicalRecord "1" -- "1" Appointment : generated from >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+MedicalRecordRepository ..> MedicalRecord : manages
+PatientRepository ..> Patient : manages
+
+' ==================== DEPENDENCIES ====================
+MedicalRecordController ..> MedicalRecordService : uses
+MedicalRecordService ..> MedicalRecordRepository : uses
+MedicalRecordService ..> PatientRepository : uses
+@enduml
+
+@startuml
+title 27. Xem chi tiết bệnh án (View Medical Record Details)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class MedicalRecordController <<RestController>> {
+  + getMyDetail(id, user) : MedicalRecordDetailResponse
+  + viewDetail(id) : MedicalRecordDetailResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class MedicalRecordService <<Service>> {
+  + getMyDetail(userId, recordId) : MedicalRecordDetailResponse
+  + viewDetail(id) : MedicalRecordDetailResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findById(recordId) : MedicalRecord
+}
+class PatientRepository <<Repository>> {
+  + findByUser_UserId(userId) : Patient
+}
+class PrescriptionRepository <<Repository>> {
+  + findByMedicalRecord(record) : Prescription
+}
+
+' ==================== ENTITY LAYER ====================
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - symptoms : String
+  - diagnosis : String
+  - doctorNotes : String
+  - status : String
+}
+class Prescription <<Entity>> {
+  - prescriptionId : String
+  - notes : String
+  - createdAt : LocalDateTime
+}
+class PrescriptionDetail <<Entity>> {
+  - id : Long
+  - medicineName : String
+  - dosage : String
+  - quantity : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+  - gender : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+
+' ==================== ASSOCIATIONS ====================
+MedicalRecord "1" -- "0..1" Prescription : has >
+Prescription "1" -- "0..*" PrescriptionDetail : contains >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+MedicalRecord "1" -- "1" Appointment : generated from >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+MedicalRecordRepository ..> MedicalRecord : manages
+PatientRepository ..> Patient : manages
+PrescriptionRepository ..> Prescription : manages
+
+' ==================== DEPENDENCIES ====================
+MedicalRecordController ..> MedicalRecordService : uses
+MedicalRecordService ..> MedicalRecordRepository : uses
+MedicalRecordService ..> PatientRepository : uses
+MedicalRecordService ..> PrescriptionRepository : uses
+@enduml
+
+@startuml
+title 28. Chuyển trạng thái bệnh án (Change Medical Record Status)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class MedicalRecordController <<RestController>> {
+  + updateStatus(id, request) : MedicalRecordDetailResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class MedicalRecordService <<Service>> {
+  + updateExaminationStatus(id, newStatus) : MedicalRecordDetailResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findById(recordId) : MedicalRecord
+  + save(record) : MedicalRecord
+}
+
+' ==================== ENTITY LAYER ====================
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - symptoms : String
+  - diagnosis : String
+  - doctorNotes : String
+  - status : String
+}
+
+' ==================== ASSOCIATIONS ====================
+MedicalRecordRepository ..> MedicalRecord : manages
+
+' ==================== DEPENDENCIES ====================
+MedicalRecordController ..> MedicalRecordService : uses
+MedicalRecordService ..> MedicalRecordRepository : uses
+@enduml
+
+@startuml
+title 29. Xác nhận kết quả khám (Confirm Examination Result)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class MedicalRecordController <<RestController>> {
+  + confirmResult(id, user) : MedicalRecordDetailResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class MedicalRecordService <<Service>> {
+  + confirmFinalResult(id, currentUserId) : MedicalRecordDetailResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class MedicalRecordRepository <<Repository>> {
+  + findById(recordId) : MedicalRecord
+  + save(record) : MedicalRecord
+}
+class PrescriptionRepository <<Repository>> {
+  + findByMedicalRecord(record) : Prescription
+}
+
+' ==================== ENTITY LAYER ====================
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+  - status : String
+  - createdAt : LocalDateTime
+}
+class Prescription <<Entity>> {
+  - prescriptionId : String
+  - notes : String
+  - createdAt : LocalDateTime
+}
+
+' ==================== ASSOCIATIONS ====================
+MedicalRecord "1" -- "0..1" Prescription : requires >
+MedicalRecordRepository ..> MedicalRecord : manages
+PrescriptionRepository ..> Prescription : manages
+
+' ==================== DEPENDENCIES ====================
+MedicalRecordController ..> MedicalRecordService : uses
+MedicalRecordService ..> MedicalRecordRepository : uses
+MedicalRecordService ..> PrescriptionRepository : verifies requirement
+@enduml
+
+@startuml
+title 30. Xem danh sách tài chính (View Financial List)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class FinancialController <<RestController>> {
+  + getUnpaidRecords(page, size, keyword) : PageResponse
+  + getSupplementPendingRecords(page, size, keyword) : PageResponse
+  + getInvoices(page, size, keyword, paymentStatus) : PageResponse
+  + getFinancialSummary() : Map
+}
+
+' ==================== SERVICE LAYER ====================
+class FinancialService <<Service>> {
+  + getUnpaidRecords(page, size, keyword) : PageResponse
+  + getSupplementPendingRecords(page, size, keyword) : PageResponse
+  + getInvoices(page, size, keyword, paymentStatus) : PageResponse
+  + getFinancialSummary() : Map
+}
+
+' ==================== REPOSITORY LAYER ====================
+class InvoiceRepository <<Repository>> {
+  + findByFilters(keyword, paymentStatus, pageable) : Page<Invoice>
+  + getTotalRevenue() : BigDecimal
+  + getTotalInsurancePaid() : BigDecimal
+  + countByPaymentStatus(status) : Long
+}
+class AppointmentRepository <<Repository>> {
+  + findUnpaidAppointments(keyword, pageable) : Page<Appointment>
+}
+class ServiceOrderRepository <<Repository>> {
+  + findSupplementPendingRecords(keyword, pageable) : Page<ServiceOrder>
+}
+
+' ==================== ENTITY LAYER ====================
+class Invoice <<Entity>> {
+  - invoiceId : String
+  - totalServiceFee : BigDecimal
+  - insurancePaid : BigDecimal
+  - customerPaid : BigDecimal
+  - paymentStatus : String
+  - createdAt : LocalDateTime
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+  - status : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - status : String
+}
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - status : String
+  - orderType : String
+  - invoiceId : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Invoice "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+Appointment "*" --> "1" Patient : booked by >
+Patient "1" -- "1" User : profile of >
+InvoiceRepository ..> Invoice : manages
+AppointmentRepository ..> Appointment : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+FinancialController ..> FinancialService : uses
+FinancialService ..> InvoiceRepository : uses
+FinancialService ..> AppointmentRepository : uses
+FinancialService ..> ServiceOrderRepository : uses
+@enduml
+
+@startuml
+title 31. Xem chi tiết tài chính (View Financial Details)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class FinancialController <<RestController>> {
+  + getInvoiceStatus(invoiceId) : Map
+  + getInvoiceDetail(invoiceId) : FinancialDetailResponse
+  + getReceiptDetail(invoiceId) : ReceiptResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class FinancialService <<Service>> {
+  + getInvoiceStatus(invoiceId) : Map
+  + getInvoiceDetail(invoiceId) : FinancialDetailResponse
+  + getReceiptDetail(invoiceId) : ReceiptResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class InvoiceRepository <<Repository>> {
+  + findById(invoiceId) : Invoice
+}
+class ServiceOrderRepository <<Repository>> {
+  + findByInvoiceId(invoiceId) : List<ServiceOrder>
+}
+
+' ==================== ENTITY LAYER ====================
+class Invoice <<Entity>> {
+  - invoiceId : String
+  - paymentStatus : String
+  - paymentMethod : String
+  - transactionId : String
+  - receiptNumber : String
+  - eInvoiceCode : String
+  - eInvoiceUrl : String
+}
+class MedicalRecord <<Entity>> {
+  - recordId : String
+  - diagnosis : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+class ServiceOrder <<Entity>> {
+  - orderId : String
+  - resultNote : String
+  - status : String
+}
+class "Service" as ServiceEntity <<Entity>> {
+  - serviceId : String
+  - serviceName : String
+  - price : BigDecimal
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Invoice "*" --> "1" MedicalRecord : belongs to >
+MedicalRecord "1" -- "1" Appointment : generated from >
+MedicalRecord "*" --> "1" Patient : belongs to >
+MedicalRecord "*" --> "0..1" Doctor : examined by >
+ServiceOrder "*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "*" --> "1" ServiceEntity : for >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+InvoiceRepository ..> Invoice : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+
+' ==================== DEPENDENCIES ====================
+FinancialController ..> FinancialService : uses
+FinancialService ..> InvoiceRepository : uses
+FinancialService ..> ServiceOrderRepository : uses
+@enduml
+
+@startuml
+title 32. Xem danh sách phản hồi (View Feedback List)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ReviewController <<RestController>> {
+  + getAllReviews(page, size) : PageResponse
+  + getReviewsByDoctor(doctorId, page, size) : PageResponse
+  + getReviewsByPatient(patientId, page, size) : PageResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ReviewService <<Service>> {
+  + getAllReviews(page, size) : PageResponse
+  + getReviewsByDoctor(doctorId, page, size) : PageResponse
+  + getReviewsByPatient(patientId, page, size) : PageResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ReviewRepository <<Repository>> {
+  + findAllActive(pageable) : Page<Review>
+  + findByDoctorId(doctorId, pageable) : Page<Review>
+  + findByPatientId(patientId, pageable) : Page<Review>
+  + getAverageRatingByDoctorId(doctorId) : Double
+  + countByDoctorId(doctorId) : Long
+}
+
+' ==================== ENTITY LAYER ====================
+class Review <<Entity>> {
+  - reviewId : Long
+  - rating : Integer
+  - comment : String
+  - replyContent : String
+  - createdAt : LocalDateTime
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+  - position : String
+}
+class Patient <<Entity>> {
+  - patientId : String
+  - healthInsuranceNumber : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+  - status : String
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Review "*" --> "1" Patient : written by >
+Review "*" --> "0..1" Doctor : about >
+Review "*" --> "0..1" Appointment : for >
+Patient "1" -- "1" User : profile of >
+Doctor "1" -- "1" User : profile of >
+ReviewRepository ..> Review : manages
+
+' ==================== DEPENDENCIES ====================
+ReviewController ..> ReviewService : uses
+ReviewService ..> ReviewRepository : uses
+@enduml
+
+@startuml
+title 33. Xem chi tiết phản hồi (View Feedback Details)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ReviewController <<RestController>> {
+  + getReviewById(reviewId) : ReviewResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ReviewService <<Service>> {
+  + getReviewById(reviewId) : ReviewResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ReviewRepository <<Repository>> {
+  + findByReviewIdAndIsDeletedFalse(reviewId) : Review
+}
+
+' ==================== ENTITY LAYER ====================
+class Review <<Entity>> {
+  - reviewId : Long
+  - rating : Integer
+  - comment : String
+  - replyContent : String
+  - replyAt : LocalDateTime
+  - createdAt : LocalDateTime
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Review "*" --> "1" Patient : written by >
+Review "*" --> "0..1" Doctor : about >
+Review "*" --> "0..1" Appointment : for >
+Review "*" --> "0..1" User : replied by >
+ReviewRepository ..> Review : manages
+
+' ==================== DEPENDENCIES ====================
+ReviewController ..> ReviewService : uses
+ReviewService ..> ReviewRepository : uses
+@enduml
+
+@startuml
+title 34. Gửi phản hồi (Send Response to Feedback)
+top to bottom direction
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 320
+skinparam linetype ortho
+hide empty members
+
+' ==================== CONTROLLER LAYER ====================
+class ReviewController <<RestController>> {
+  + replyReview(reviewId, request) : ReviewResponse
+}
+
+' ==================== SERVICE LAYER ====================
+class ReviewService <<Service>> {
+  + replyReview(reviewId, request, userId) : ReviewResponse
+}
+
+' ==================== REPOSITORY LAYER ====================
+class ReviewRepository <<Repository>> {
+  + findByReviewIdAndIsDeletedFalse(reviewId) : Review
+  + save(review) : Review
+}
+class UserRepository <<Repository>> {
+  + findById(userId) : User
+}
+
+' ==================== ENTITY LAYER ====================
+class Review <<Entity>> {
+  - reviewId : Long
+  - comment : String
+  - replyContent : String
+  - replyAt : LocalDateTime
+  - createdAt : LocalDateTime
+}
+class Patient <<Entity>> {
+  - patientId : String
+}
+class Doctor <<Entity>> {
+  - doctorId : String
+  - specialization : String
+}
+class Appointment <<Entity>> {
+  - appointmentId : String
+  - appointmentDate : LocalDate
+}
+class User <<Entity>> {
+  - userId : Long
+  - fullName : String
+  - email : String
+}
+
+' ==================== ASSOCIATIONS ====================
+Review "*" --> "1" Patient : written by >
+Review "*" --> "0..1" Doctor : about >
+Review "*" --> "0..1" Appointment : for >
+Review "*" --> "0..1" User : replied by >
+ReviewRepository ..> Review : manages
+UserRepository ..> User : manages
+
+' ==================== DEPENDENCIES ====================
+ReviewController ..> ReviewService : uses
+ReviewService ..> ReviewRepository : uses
+ReviewService ..> UserRepository : uses
+@enduml

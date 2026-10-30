@@ -1,0 +1,605 @@
+
+'===============================================================================
+' CLASS DIAGRAMS CHI TIẾT - FEATURES 1-6
+' 1. Xem danh sách tài khoản khách hàng (View customer accounts list)
+' 2. Hủy thông tin khách hàng (Cancel customer information)
+' 3. Cập nhật lịch hẹn và thông tin khách hàng (Update appointment & customer info)
+' 4. Tạo lịch hẹn cho khách hàng (Create appointment for customer)
+' 5. Thu phí tạm ứng khám tổng quát (Collect prepayment for general examination)
+' 6. Quản lý dịch vụ (Service management)
+'===============================================================================
+
+
+'===============================================================================
+' DIAGRAM 1-2: QUẢN LÝ TÀI KHOẢN BỆNH NHÂN
+'===============================================================================
+@startuml "1-2. Quan ly tai khoan benh nhan"
+title **4.1.2.1 Class Diagram – Xem danh sách tài khoản khách hàng & Hủy thông tin khách hàng**
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 350
+
+' === CONTROLLER LAYER ===
+class PatientManagementController <<RestController>> {
+    + getAllPatients(page : int, size : int, sortBy : String,\n\tsortDir : String, keyword : String, isActive : Boolean) : ResponseEntity<PageResponse<UserDetailResponse>>
+    + getPatientById(patientId : int) : ResponseEntity<UserDetailResponse>
+    + createPatient(request : CreatePatientRequest) : ResponseEntity<UserDetailResponse>
+    + updatePatient(patientId : int, request : UpdatePatientRequest) : ResponseEntity<UserDetailResponse>
+    + deletePatient(patientId : int) : ResponseEntity<MessageResponse>
+    + lockPatient(patientId : int) : ResponseEntity<MessageResponse>
+    + unlockPatient(patientId : int) : ResponseEntity<MessageResponse>
+}
+
+class PatientController <<RestController>> {
+    + getPatients(page : int, size : int, keyword : String,\n\tsortBy : String, sortDir : String, today : boolean) : ApiResponse<PageResponse<PatientResponse>>
+    + updatePatient(patientId : String, request : UpdatePatientRequest) : ApiResponse<PatientResponse>
+    + deletePatient(patientId : String) : ApiResponse<String>
+}
+
+' === SERVICE LAYER ===
+class PatientManagementService <<Service>> {
+    + getAllPatients(page : int, size : int, sortBy : String,\n\tsortDir : String, keyword : String, isActive : Boolean) : PageResponse<UserDetailResponse>
+    + getPatientById(userId : int) : UserDetailResponse
+    + createPatient(request : CreatePatientRequest) : UserDetailResponse
+    + updatePatient(userId : int, request : UpdatePatientRequest) : UserDetailResponse
+    + deletePatient(userId : int) : MessageResponse
+    + lockPatient(userId : int) : MessageResponse
+    + unlockPatient(userId : int) : MessageResponse
+}
+
+class PatientService <<Service>> {
+    + getPatients(page : int, size : int, keyword : String,\n\tsortBy : String, sortDir : String, today : boolean) : PageResponse<PatientResponse>
+    + updatePatient(patientId : String, request : UpdatePatientRequest) : PatientResponse
+    + deletePatient(patientId : String) : void
+}
+
+' === REPOSITORY LAYER ===
+class PatientRepository <<Repository>> {
+    + findByKeyword(keyword : String, pageable : Pageable) : Page<Patient>
+    + findByKeywordAndDateRange(keyword : String,\n\tstartDate : LocalDateTime, endDate : LocalDateTime, pageable : Pageable) : Page<Patient>
+    + findByUser_UserId(userId : Long) : Optional<Patient>
+    + findByUser_PhoneNumber(phoneNumber : String) : Optional<Patient>
+    + findByUser_Cccd(cccd : String) : Optional<Patient>
+    + existsByPatientId(patientId : String) : boolean
+}
+
+class UserRepository <<Repository>> {
+    + findByUsername(username : String) : Optional<User>
+    + findByEmail(email : String) : Optional<User>
+    + findByPhoneNumber(phoneNumber : String) : Optional<User>
+    + existsByEmail(email : String) : Boolean
+    + existsByPhoneNumber(phoneNumber : String) : Boolean
+    + existsByCccd(cccd : String) : Boolean
+    + searchUsers(keyword : String, role : String, pageable : Pageable) : Page<User>
+    + findByKeywordAndIsDeleted(keyword : String, isDeleted : Boolean, pageable : Pageable) : Page<User>
+    + findByRoleAndIsDeleted(roleName : String, isDeleted : Boolean, pageable : Pageable) : Page<User>
+    + findByRoleAndKeyword(roleName : String, keyword : String,\n\tisDeleted : Boolean, pageable : Pageable) : Page<User>
+    + findByRoleAndIsActive(roleName : String, isActive : Boolean,\n\tisDeleted : Boolean, pageable : Pageable) : Page<User>
+}
+
+' === ENTITY LAYER ===
+class Patient <<Entity>> {
+    - patientId : String
+    - dateOfBirth : LocalDate
+    - bloodType : String
+    - healthInsuranceNumber : String
+    - allergies : String
+    - address : String
+    - height : BigDecimal
+    - weight : BigDecimal
+    - backgroundDisease : String
+    - emergencyContactName : String
+    - emergencyContactPhone : String
+    - emergencyContactRelationship : String
+}
+
+class User <<Entity>> {
+    - userId : Long
+    - username : String
+    - email : String
+    - passwordHash : String
+    - fullName : String
+    - cccd : String
+    - phoneNumber : String
+    - avatarUrl : String
+    - staffId : String
+    - gender : Gender
+    - isActive : Boolean
+    - isDeleted : Boolean
+    - mustChangePassword : Boolean
+    - createdAt : LocalDateTime
+    - updatedAt : LocalDateTime
+}
+
+class Role <<Entity>> {
+    - roleId : Integer
+    - roleName : String
+    - description : String
+}
+
+' === ENUMERATIONS ===
+enum Gender <<enumeration>> {
+    MALE
+    FEMALE
+    OTHER
+}
+
+' === DEPENDENCY RELATIONSHIPS ===
+PatientManagementController ..> PatientManagementService : uses
+PatientController ..> PatientService : uses
+PatientManagementService ..> PatientRepository : uses
+PatientManagementService ..> UserRepository : uses
+PatientService ..> PatientRepository : uses
+
+' === ENTITY RELATIONSHIPS ===
+Patient "1" -- "1" User : belongs to >
+User "0..*" -- "0..*" Role : has >
+User -- Gender : has >
+
+' === REPOSITORY-ENTITY ===
+PatientRepository ..> Patient : manages
+UserRepository ..> User : manages
+
+@enduml
+
+
+'===============================================================================
+' DIAGRAM 3-4: QUẢN LÝ LỊCH HẸN
+'===============================================================================
+@startuml "3-4. Quan ly lich hen"
+title **4.1.2.2 Class Diagram – Cập nhật lịch hẹn & Tạo lịch hẹn cho khách hàng**
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 350
+
+' === CONTROLLER LAYER ===
+class AppointmentController <<RestController>> {
+    + getMyAppointments(status : String, page : int, size : int) : ApiResponse<Page<AppointmentResponse>>
+    + cancelMyAppointment(appointmentId : String,\n\trequest : CancelAppointmentRequest) : ApiResponse<AppointmentResponse>
+    + getAvailableSlots(date : String, serviceIds : List<String>) : ApiResponse<List<AvailableSlotResponse>>
+    + getClinicalRooms(slotId : Long, date : String) : ApiResponse<List<Map<String, Object>>>
+    + bookMyAppointment(request : BookAppointmentRequest) : ApiResponse<AppointmentResponse>
+    + createAppointment(request : CreateAppointmentRequest) : ApiResponse<AppointmentResponse>
+    + updateAppointment(appointmentId : String,\n\trequest : UpdateAppointmentRequest) : ApiResponse<AppointmentResponse>
+    + getAppointments(status : String, page : int, size : int) : ApiResponse<Page<AppointmentResponse>>
+    + getAppointment(appointmentId : String) : ApiResponse<AppointmentDetailResponse>
+    + checkIn(appointmentId : String) : ApiResponse<AppointmentResponse>
+    + getMyPatients(status : String, page : int, size : int) : ApiResponse<Page<AppointmentResponse>>
+    + callNextPatient() : ApiResponse<AppointmentResponse>
+    + completeExamination(appointmentId : String,\n\trequest : CompleteExaminationRequest) : ApiResponse<AppointmentResponse>
+    + saveExaminationProgress(appointmentId : String,\n\trequest : CompleteExaminationRequest) : ApiResponse<AppointmentResponse>
+}
+
+' === SERVICE LAYER ===
+class AppointmentService <<Service>> {
+    + createAppointment(request : CreateAppointmentRequest) : AppointmentResponse
+    + confirmAppointment(appointmentId : String) : AppointmentResponse
+    + cancelMyAppointment(appointmentId : String, patientId : String,\n\trequest : CancelAppointmentRequest) : AppointmentResponse
+    + cancelAppointment(appointmentId : String,\n\trequest : CancelAppointmentRequest) : AppointmentResponse
+    + getAppointmentDetail(appointmentId : String) : AppointmentDetailResponse
+    + getVisitHistoryByPatient(patientId : String,\n\tpageable : Pageable) : Page<AppointmentResponse>
+    + updateAppointment(appointmentId : String,\n\trequest : UpdateAppointmentRequest) : AppointmentResponse
+    + getAppointments(status : String, pageable : Pageable) : Page<AppointmentResponse>
+    + getAppointment(appointmentId : String) : AppointmentResponse
+    + checkIn(appointmentId : String) : AppointmentResponse
+    + getAppointmentsForDoctor(userId : int, status : String,\n\tpageable : Pageable) : Page<AppointmentResponse>
+    + callNextPatient(userId : int) : AppointmentResponse
+    + saveExaminationProgress(appointmentId : String,\n\trequest : CompleteExaminationRequest) : AppointmentResponse
+    + completeExamination(appointmentId : String,\n\trequest : CompleteExaminationRequest) : AppointmentResponse
+    + getAvailableSlots(date : LocalDate,\n\tserviceIds : List<String>) : List<AvailableSlotResponse>
+    + bookAppointment(userId : int,\n\trequest : BookAppointmentRequest) : AppointmentResponse
+}
+
+' === REPOSITORY LAYER ===
+class AppointmentRepository <<Repository>> {
+    + findByPatientOrBooker(patientId : String, pageable : Pageable) : Page<Appointment>
+    + findAllByOrderByCreatedAtDesc(pageable : Pageable) : Page<Appointment>
+    + findByStatusOrderByCreatedAtDesc(status : String, pageable : Pageable) : Page<Appointment>
+    + findByDoctorId(doctorId : String, appointmentDate : LocalDate,\n\tstatus : String, pageable : Pageable) : Page<Appointment>
+    + findWaitingByDoctorIdOrderByPriority(doctorId : String,\n\tpageable : Pageable) : List<Appointment>
+    + findByDoctor_DoctorIdAndStatus(doctorId : String,\n\tstatus : String) : Optional<Appointment>
+    + findUnpaidAppointments(keyword : String,\n\tpageable : Pageable) : Page<Appointment>
+    + findActiveQueueByDoctorId(doctorId : String,\n\tappointmentDate : LocalDate) : List<Appointment>
+    + findActiveQueueByRoomId(roomId : String,\n\tappointmentDate : LocalDate) : List<Appointment>
+    + countDistinctByAppointmentDateAndAppointmentTimeAndStatusNotInAndServiceId(\n\tappointmentDate : LocalDate, appointmentTime : LocalTime,\n\tstatuses : Collection<String>, serviceId : String) : long
+}
+
+class WorkingTimeSlotRepository <<Repository>> {
+    + findByIsDeletedFalse() : List<WorkingTimeSlot>
+    + findAllActiveSlots() : List<WorkingTimeSlot>
+    + findByStartTimeAndIsActiveTrueAndIsDeletedFalse(\n\tstartTime : LocalTime) : Optional<WorkingTimeSlot>
+}
+
+' === ENTITY LAYER ===
+class Appointment <<Entity>> {
+    - appointmentId : String
+    - appointmentDate : LocalDate
+    - appointmentTime : LocalTime
+    - status : String
+    - queueNumber : Integer
+    - priorityScore : Integer
+    - waitingSince : LocalDateTime
+    - notes : String
+    - cancelReason : String
+    - bookedByPatientId : String
+    - createdAt : LocalDateTime
+}
+
+class Patient <<Entity>> {
+    - patientId : String
+    - dateOfBirth : LocalDate
+    - bloodType : String
+    - healthInsuranceNumber : String
+    - allergies : String
+    - address : String
+    - height : BigDecimal
+    - weight : BigDecimal
+    - backgroundDisease : String
+    - emergencyContactName : String
+    - emergencyContactPhone : String
+    - emergencyContactRelationship : String
+}
+
+class Doctor <<Entity>> {
+    - doctorId : String
+    - specialization : String
+    - degree : String
+    - licenseNumber : String
+    - doctorType : DoctorType
+    - isHeadOfDept : Boolean
+    - bio : String
+    - position : String
+    - experienceYears : Integer
+}
+
+class Service <<Entity>> {
+    - serviceId : String
+    - serviceName : String
+    - price : BigDecimal
+    - description : String
+    - isActive : Boolean
+    - isDeleted : Boolean
+    - bhytServiceCode : String
+    - maxPatients : Integer
+}
+
+class Room <<Entity>> {
+    - roomId : String
+    - roomName : String
+    - roomType : String
+    - location : String
+    - status : String
+    - isDeleted : Boolean
+    - baseAvgTime : Integer
+    - currentQueueLength : Integer
+}
+
+class WorkingTimeSlot <<Entity>> {
+    - slotId : Long
+    - shiftName : String
+    - startTime : LocalTime
+    - endTime : LocalTime
+    - maxPatients : Integer
+    - description : String
+    - isActive : Boolean
+    - isDeleted : Boolean
+}
+
+class User <<Entity>> {
+    - userId : Long
+    - username : String
+    - email : String
+    - fullName : String
+    - phoneNumber : String
+    - gender : Gender
+    - isActive : Boolean
+}
+
+class Department <<Entity>> {
+    - deptId : Integer
+    - deptName : String
+    - description : String
+    - deptType : DeptType
+    - isActive : Boolean
+}
+
+' === ENUMERATIONS ===
+enum DoctorType <<enumeration>> {
+    CLINICAL
+    SPECIALIST
+}
+
+enum Gender <<enumeration>> {
+    MALE
+    FEMALE
+    OTHER
+}
+
+enum DeptType <<enumeration>> {
+    CLINICAL
+    PARACLINICAL
+    ADMINISTRATIVE
+    PHARMACY
+}
+
+' === DEPENDENCY RELATIONSHIPS ===
+AppointmentController ..> AppointmentService : uses
+AppointmentService ..> AppointmentRepository : uses
+AppointmentService ..> WorkingTimeSlotRepository : uses
+
+' === ENTITY RELATIONSHIPS ===
+Appointment "0..*" --> "1" Patient : booked by >
+Appointment "0..*" --> "1" Doctor : assigned to >
+Appointment "0..*" --> "0..1" Room : takes place in >
+Appointment "0..*" -- "0..*" Service : includes >
+Doctor "0..*" --> "1" Department : belongs to >
+Doctor "0..*" --> "0..1" Room : works in >
+Doctor -- DoctorType : has >
+Department -- DeptType : has >
+Room "0..*" --> "1" Department : belongs to >
+Room "0..*" -- "0..*" Service : supports >
+Patient "1" -- "1" User : belongs to >
+Doctor "1" -- "1" User : belongs to >
+User -- Gender : has >
+
+' === REPOSITORY-ENTITY ===
+AppointmentRepository ..> Appointment : manages
+WorkingTimeSlotRepository ..> WorkingTimeSlot : manages
+
+@enduml
+
+
+'===============================================================================
+' DIAGRAM 5: THU PHÍ TẠM ỨNG KHÁM TỔNG QUÁT
+'===============================================================================
+@startuml "5. Thu phi tam ung kham tong quat"
+title **4.1.2.3 Class Diagram – Thu phí tạm ứng khám tổng quát**
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 350
+
+' === CONTROLLER LAYER ===
+class PaymentController <<RestController>> {
+    + collectPrepayment(request : PrepaymentRequest) : ApiResponse<PaymentResponse>
+    + collectSupplementPayment(request : SupplementPaymentRequest) : ApiResponse<PaymentResponse>
+    + sepayWebhook(payload : Map<String, Object>,\n\tauthorizationHeader : String) : ResponseEntity<String>
+}
+
+' === SERVICE LAYER ===
+class PaymentService <<Service>> {
+    + collectPrepayment(request : PrepaymentRequest) : PaymentResponse
+    + processSepayWebhook(payload : Map<String, Object>,\n\tauthorizationHeader : String) : void
+    + collectSupplementPayment(request : SupplementPaymentRequest) : PaymentResponse
+}
+
+' === REPOSITORY LAYER ===
+class InvoiceRepository <<Repository>> {
+    + existsByMedicalRecord_Appointment_AppointmentIdAndPaymentStatus(\n\tappointmentId : String, paymentStatus : String) : boolean
+    + findByMedicalRecord_RecordId(recordId : String) : List<Invoice>
+    + findByFilters(keyword : String, paymentStatus : String,\n\tpageable : Pageable) : Page<Invoice>
+    + getTotalRevenue() : BigDecimal
+    + getTotalInsurancePaid() : BigDecimal
+    + countByPaymentStatus(status : String) : Long
+    + countByReceiptNumberStartingWith(prefix : String) : long
+    + findByPatientUserId(userId : Long, paymentStatus : String,\n\tpageable : Pageable) : Page<Invoice>
+}
+
+class ServiceOrderRepository <<Repository>> {
+    + findByMedicalRecord_RecordId(recordId : String) : List<ServiceOrder>
+    + findByMedicalRecord_RecordIdAndStatusAndInvoiceIdIsNull(\n\trecordId : String, status : String) : List<ServiceOrder>
+    + findByInvoiceId(invoiceId : String) : List<ServiceOrder>
+}
+
+class MedicalRecordRepository <<Repository>> {
+    + findByAppointment_AppointmentId(appointmentId : String) : Optional<MedicalRecord>
+    + findByAppointment(appointment : Appointment) : Optional<MedicalRecord>
+}
+
+' === ENTITY LAYER ===
+class Invoice <<Entity>> {
+    - invoiceId : String
+    - cashierId : String
+    - totalServiceFee : BigDecimal
+    - insurancePaid : BigDecimal
+    - customerPaid : BigDecimal
+    - paymentStatus : String
+    - paymentMethod : String
+    - transactionId : String
+    - paidAt : LocalDateTime
+    - gatewayPayload : String
+    - bhytSyncStatus : String
+    - syncErrorMessage : String
+    - receiptNumber : String
+    - eInvoiceCode : String
+    - eInvoiceUrl : String
+    - receiptIssuedAt : LocalDateTime
+    - receiptStatus : String
+    - createdAt : LocalDateTime
+}
+
+class MedicalRecord <<Entity>> {
+    - recordId : String
+    - symptoms : String
+    - diagnosis : String
+    - doctorNotes : String
+    - status : String
+    - createdAt : LocalDateTime
+}
+
+class Appointment <<Entity>> {
+    - appointmentId : String
+    - appointmentDate : LocalDate
+    - appointmentTime : LocalTime
+    - status : String
+    - queueNumber : Integer
+    - notes : String
+    - createdAt : LocalDateTime
+}
+
+class ServiceOrder <<Entity>> {
+    - orderId : String
+    - technicianId : String
+    - resultNote : String
+    - resultFileUrl : String
+    - indicationNote : String
+    - status : String
+    - orderType : String
+    - invoiceId : String
+    - createdAt : LocalDateTime
+}
+
+class Patient <<Entity>> {
+    - patientId : String
+    - dateOfBirth : LocalDate
+    - healthInsuranceNumber : String
+    - address : String
+}
+
+class Doctor <<Entity>> {
+    - doctorId : String
+    - specialization : String
+    - doctorType : DoctorType
+}
+
+class Service <<Entity>> {
+    - serviceId : String
+    - serviceName : String
+    - price : BigDecimal
+    - bhytServiceCode : String
+}
+
+' === DEPENDENCY RELATIONSHIPS ===
+PaymentController ..> PaymentService : uses
+PaymentService ..> InvoiceRepository : uses
+PaymentService ..> ServiceOrderRepository : uses
+PaymentService ..> MedicalRecordRepository : uses
+
+' === ENTITY RELATIONSHIPS ===
+Invoice "0..*" --> "1" MedicalRecord : belongs to >
+MedicalRecord "1" -- "1" Appointment : generated from >
+MedicalRecord "0..*" --> "1" Doctor : examined by >
+MedicalRecord "0..*" --> "1" Patient : belongs to >
+ServiceOrder "0..*" --> "1" MedicalRecord : belongs to >
+ServiceOrder "0..*" --> "1" Service : for >
+Appointment "0..*" --> "1" Patient : booked by >
+
+' === REPOSITORY-ENTITY ===
+InvoiceRepository ..> Invoice : manages
+ServiceOrderRepository ..> ServiceOrder : manages
+MedicalRecordRepository ..> MedicalRecord : manages
+
+@enduml
+
+
+'===============================================================================
+' DIAGRAM 6: QUẢN LÝ DỊCH VỤ
+'===============================================================================
+@startuml "6. Quan ly dich vu"
+title **4.1.2.4 Class Diagram – Quản lý dịch vụ**
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 11
+skinparam wrapWidth 350
+
+' === CONTROLLER LAYER ===
+class ServiceController <<RestController>> {
+    + getAllServices(category : String, deptId : Integer,\n\tincludeInactive : boolean, authentication : Authentication) : ApiResponse<List<Service>>
+    + updateServiceConfig(serviceId : String,\n\tbody : Map<String, Object>) : ApiResponse<Service>
+    + createService(request : ServiceCatalogRequest) : ApiResponse<Service>
+    + updateService(serviceId : String,\n\trequest : ServiceCatalogRequest) : ApiResponse<Service>
+    + updateServiceStatus(serviceId : String,\n\trequest : UpdateServiceStatusRequest) : ApiResponse<Service>
+    + deleteService(serviceId : String) : ApiResponse<Void>
+}
+
+' === SERVICE LAYER ===
+class ServiceManagementService <<Service>> {
+    + createService(request : ServiceCatalogRequest) : Service
+    + updateService(serviceId : String,\n\trequest : ServiceCatalogRequest) : Service
+    + updateServiceStatus(serviceId : String, isActive : Boolean) : Service
+    + deleteService(serviceId : String) : void
+    + getVisibleServices(includeInactive : boolean) : List<Service>
+}
+
+' === REPOSITORY LAYER ===
+class ServiceRepository <<Repository>> {
+    + findAllByIsDeletedFalse() : List<Service>
+    + findAllByIsDeletedFalseAndIsActiveTrue() : List<Service>
+    + findByServiceIdAndIsDeletedFalse(serviceId : String) : Optional<Service>
+    + findByServiceIdAndIsDeletedFalseAndIsActiveTrue(\n\tserviceId : String) : Optional<Service>
+    + findAllByServiceIdInAndIsDeletedFalseAndIsActiveTrue(\n\tserviceIds : Collection<String>) : List<Service>
+}
+
+class DepartmentRepository <<Repository>> {
+    + findAllByIsDeletedFalseOrderByDeptIdDesc() : List<Department>
+    + findAllByIsDeletedFalseAndIsActiveTrueOrderByDeptIdDesc() : List<Department>
+    + findByDeptIdAndIsDeletedFalse(deptId : Integer) : Optional<Department>
+    + existsByDeptNameAndIsDeletedFalse(deptName : String) : Boolean
+}
+
+class RoomRepository <<Repository>> {
+    + findAllByIsDeletedFalseOrderByRoomIdAsc() : List<Room>
+    + findByDepartment_DeptIdAndIsDeletedFalseOrderByRoomIdAsc(\n\tdeptId : Integer) : List<Room>
+    + findByRoomIdAndIsDeletedFalse(roomId : String) : Optional<Room>
+}
+
+' === ENTITY LAYER ===
+class Service <<Entity>> {
+    - serviceId : String
+    - serviceName : String
+    - price : BigDecimal
+    - description : String
+    - isActive : Boolean
+    - isDeleted : Boolean
+    - bhytServiceCode : String
+    - maxPatients : Integer
+}
+
+class Department <<Entity>> {
+    - deptId : Integer
+    - deptName : String
+    - description : String
+    - deptType : DeptType
+    - isActive : Boolean
+    - isDeleted : Boolean
+}
+
+class Room <<Entity>> {
+    - roomId : String
+    - roomName : String
+    - roomType : String
+    - location : String
+    - status : String
+    - isDeleted : Boolean
+    - baseAvgTime : Integer
+    - currentQueueLength : Integer
+}
+
+' === ENUMERATIONS ===
+enum DeptType <<enumeration>> {
+    CLINICAL
+    PARACLINICAL
+    ADMINISTRATIVE
+    PHARMACY
+}
+
+' === DEPENDENCY RELATIONSHIPS ===
+ServiceController ..> ServiceManagementService : uses
+ServiceManagementService ..> ServiceRepository : uses
+ServiceManagementService ..> DepartmentRepository : uses
+ServiceManagementService ..> RoomRepository : uses
+
+' === ENTITY RELATIONSHIPS ===
+Service "0..*" --> "1" Department : belongs to >
+Room "0..*" --> "1" Department : belongs to >
+Service "0..*" -- "0..*" Room : supported by >
+Department -- DeptType : has >
+
+' === REPOSITORY-ENTITY ===
+ServiceRepository ..> Service : manages
+DepartmentRepository ..> Department : manages
+RoomRepository ..> Room : manages
+
+@enduml

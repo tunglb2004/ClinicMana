@@ -1,0 +1,611 @@
+' PlantUML sequence diagrams mapped to current FE/BE implementation.
+' FE is modeled as a single boundary lifeline between actor and backend.
+
+@startuml
+title View customer accounts list
+autonumber
+hide footbox
+
+actor Staff
+
+box "Clinic Management System"
+boundary ": CustomerAccountsPage (FE)" as FE
+control ": PatientManagementController" as PatientController
+control ": PatientManagementService" as PatientService
+database ": UserRepository" as UserRepo
+database ": MainDatabase" as DB
+end box
+
+Staff -> FE: Open customer accounts list
+activate FE
+FE -> PatientController: GET /api/admin/patients/list(page,size,sortBy,sortDir,keyword,isActive)
+activate PatientController
+PatientController -> PatientService: getAllPatients(page,size,sortBy,sortDir,keyword,isActive)
+activate PatientService
+
+alt keyword is provided
+    PatientService -> UserRepo: findByRoleAndKeyword("ROLE_PATIENT", keyword, false, pageable)
+    activate UserRepo
+    UserRepo -> DB: SELECT users by role + keyword + is_deleted = false
+    activate DB
+    return Page<User>
+    return patientPage
+else isActive is provided
+    PatientService -> UserRepo: findByRoleAndIsActive("ROLE_PATIENT", isActive, false, pageable)
+    activate UserRepo
+    UserRepo -> DB: SELECT users by role + is_active + is_deleted = false
+    activate DB
+    return Page<User>
+    return patientPage
+else default listing
+    PatientService -> UserRepo: findByRoleAndIsDeleted("ROLE_PATIENT", false, pageable)
+    activate UserRepo
+    UserRepo -> DB: SELECT users by role + is_deleted = false
+    activate DB
+    return Page<User>
+    return patientPage
+end
+
+return PageResponse<UserDetailResponse>
+return 200 OK + PageResponse<UserDetailResponse>
+return Render customer accounts list
+@enduml
+
+
+@startuml
+title Cancel customer information
+autonumber
+hide footbox
+
+actor Cashier
+
+box "Clinic Management System"
+boundary ": CustomerAccountsPage (FE)" as FE
+control ": PatientManagementController" as PatientController
+control ": PatientManagementService" as PatientService
+database ": UserRepository" as UserRepo
+database ": MainDatabase" as DB
+end box
+
+Cashier -> FE: Click delete customer
+activate FE
+FE -> PatientController: DELETE /api/admin/patients/{userId}
+activate PatientController
+PatientController -> PatientService: deletePatient(userId)
+activate PatientService
+PatientService -> UserRepo: findById(userId)
+activate UserRepo
+UserRepo -> DB: SELECT user by user_id
+activate DB
+return User or empty
+return User or empty
+
+alt user not found / already deleted / not ROLE_PATIENT
+    return RuntimeException
+    return 4xx/5xx error
+    return Show delete failure
+else valid patient
+    PatientService -> UserRepo: save(user{isDeleted=true,isActive=false})
+    activate UserRepo
+    UserRepo -> DB: UPDATE users SET is_deleted = true, is_active = false
+    activate DB
+    return updated user row
+    return savedUser
+    return MessageResponse("Xóa bệnh nhân thành công")
+    return 200 OK + MessageResponse
+    return Show delete success
+end
+@enduml
+
+
+@startuml
+title Update appointment and customer information
+autonumber
+hide footbox
+
+actor Receptionist
+
+box "Clinic Management System"
+boundary ": AppointmentEditPage (FE)" as FE
+control ": PatientManagementController" as PatientController
+control ": PatientManagementService" as PatientService
+control ": AppointmentController" as AppointmentController
+control ": AppointmentService" as AppointmentService
+database ": UserRepository" as UserRepo
+database ": PatientRepository" as PatientRepo
+database ": AppointmentRepository" as AppointmentRepo
+database ": DoctorRepository" as DoctorRepo
+database ": ServiceRepository" as ServiceRepo
+database ": RoomRepository" as RoomRepo
+database ": StaffScheduleRepository" as StaffScheduleRepo
+database ": MainDatabase" as DB
+end box
+
+Receptionist -> FE: Submit customer and appointment changes
+activate FE
+
+FE -> PatientController: PUT /api/admin/patients/{userId}
+activate PatientController
+PatientController -> PatientService: updatePatient(userId, updatePatientRequest)
+activate PatientService
+PatientService -> UserRepo: findById(userId)
+activate UserRepo
+UserRepo -> DB: SELECT user by user_id
+activate DB
+return User or empty
+return User
+PatientService -> PatientRepo: findByUser_UserId(userId)
+activate PatientRepo
+PatientRepo -> DB: SELECT patient by user_id
+activate DB
+return Patient or empty
+return Patient
+
+opt email / phone / cccd is changed
+    PatientService -> UserRepo: existsByEmail / existsByPhoneNumber / existsByCccd
+    activate UserRepo
+    UserRepo -> DB: SELECT duplicate check
+    activate DB
+    return boolean
+    return duplicate result
+end
+
+PatientService -> UserRepo: save(updated User)
+activate UserRepo
+UserRepo -> DB: UPDATE users
+activate DB
+return updated User
+return updatedUser
+PatientService -> PatientRepo: save(updated Patient)
+activate PatientRepo
+PatientRepo -> DB: UPDATE patients
+activate DB
+return updated Patient
+return updatedPatient
+return UserDetailResponse
+return 200 OK + customer update result
+
+alt customer update failed
+    return Show validation or save error
+else customer update succeeded
+    FE -> AppointmentController: PUT /api/appointments/{appointmentId}
+    activate AppointmentController
+    AppointmentController -> AppointmentService: updateAppointment(appointmentId, updateAppointmentRequest)
+    activate AppointmentService
+    AppointmentService -> AppointmentRepo: findById(appointmentId)
+    activate AppointmentRepo
+    AppointmentRepo -> DB: SELECT appointment by appointment_id
+    activate DB
+    return Appointment or empty
+    return Appointment
+
+    opt doctorId is provided
+        AppointmentService -> DoctorRepo: findById(doctorId)
+        activate DoctorRepo
+        DoctorRepo -> DB: SELECT doctor by doctor_id
+        activate DB
+        return Doctor or empty
+        return Doctor
+    end
+
+    opt serviceIds is provided
+        AppointmentService -> ServiceRepo: findAllByServiceIdInAndIsDeletedFalseAndIsActiveTrue(serviceIds)
+        activate ServiceRepo
+        ServiceRepo -> DB: SELECT active services by service_id list
+        activate DB
+        return List<Service>
+        return services
+    end
+
+    opt roomId or doctor/date/time changes
+        AppointmentService -> RoomRepo: findByRoomIdAndIsDeletedFalse(roomId)
+        activate RoomRepo
+        RoomRepo -> DB: SELECT room by room_id
+        activate DB
+        return Room or empty
+        return Room
+        opt doctor + date + time are present
+            AppointmentService -> StaffScheduleRepo: findFirstByUser_UserIdAndWorkDateAndSlot_SlotIdAndRoom_RoomId(...)
+            activate StaffScheduleRepo
+            StaffScheduleRepo -> DB: SELECT staff schedule by doctor + work date + slot + room
+            activate DB
+            return schedule or empty
+            return schedule or empty
+        end
+    end
+
+    AppointmentService -> AppointmentRepo: save(updated Appointment)
+    activate AppointmentRepo
+    AppointmentRepo -> DB: UPDATE appointments and appointment_services
+    activate DB
+    return updated Appointment
+    return updatedAppointment
+    return AppointmentResponse
+    return 200 OK + appointment update result
+    return Show combined update success
+end
+@enduml
+
+
+@startuml
+title Create appointment for customer (record expected visit)
+autonumber
+hide footbox
+
+actor Receptionist
+
+box "Clinic Management System"
+boundary ": CreateRequestModal (FE)" as FE
+control ": AppointmentController" as AppointmentController
+control ": AppointmentService" as AppointmentService
+database ": PatientRepository" as PatientRepo
+database ": DoctorRepository" as DoctorRepo
+database ": ServiceRepository" as ServiceRepo
+database ": RoomRepository" as RoomRepo
+database ": StaffScheduleRepository" as StaffScheduleRepo
+database ": AppointmentRepository" as AppointmentRepo
+database ": MainDatabase" as DB
+end box
+
+Receptionist -> FE: Submit create appointment form
+activate FE
+FE -> AppointmentController: POST /api/appointments
+activate AppointmentController
+AppointmentController -> AppointmentService: createAppointment(createAppointmentRequest)
+activate AppointmentService
+AppointmentService -> PatientRepo: findById(patientId)
+activate PatientRepo
+PatientRepo -> DB: SELECT patient by patient_id
+activate DB
+return Patient or empty
+return Patient
+
+opt doctorId is provided
+    AppointmentService -> DoctorRepo: findById(doctorId)
+    activate DoctorRepo
+    DoctorRepo -> DB: SELECT doctor by doctor_id
+    activate DB
+    return Doctor or empty
+    return Doctor
+end
+
+opt roomId is provided
+    AppointmentService -> RoomRepo: findByRoomIdAndIsDeletedFalse(roomId)
+    activate RoomRepo
+    RoomRepo -> DB: SELECT room by room_id
+    activate DB
+    return Room or empty
+    return Room
+    opt doctor + date + time are present
+        AppointmentService -> StaffScheduleRepo: findFirstByUser_UserIdAndWorkDateAndSlot_SlotIdAndRoom_RoomId(...)
+        activate StaffScheduleRepo
+        StaffScheduleRepo -> DB: SELECT matched doctor schedule in selected room
+        activate DB
+        return schedule or empty
+        return schedule or empty
+    end
+end
+
+AppointmentService -> ServiceRepo: findAllByServiceIdInAndIsDeletedFalseAndIsActiveTrue(serviceIds)
+activate ServiceRepo
+ServiceRepo -> DB: SELECT active services by service_id list
+activate DB
+return List<Service>
+return services
+
+AppointmentService -> AppointmentRepo: countDistinctByAppointmentDateAndAppointmentTimeAndStatusNotInAndRoomPool(...)
+activate AppointmentRepo
+AppointmentRepo -> DB: SELECT slot pool occupancy and capacity
+activate DB
+return pool availability
+return SlotAvailability
+
+opt room is selected
+    AppointmentService -> AppointmentRepo: count occupancy for selected room
+    activate AppointmentRepo
+    AppointmentRepo -> DB: SELECT room occupancy and capacity
+    activate DB
+    return room availability
+    return SlotAvailability
+end
+
+alt patient/doctor/service/slot validation fails
+    return AppException(ErrorCode.*)
+    return 4xx error
+    return Show create appointment failure
+else appointment is valid
+    AppointmentService -> AppointmentRepo: save(new Appointment)
+    activate AppointmentRepo
+    AppointmentRepo -> DB: INSERT appointment and appointment_services
+    activate DB
+    return saved Appointment
+    return savedAppointment
+    return AppointmentResponse
+    return 200 OK + AppointmentResponse
+    return Show create appointment success
+end
+@enduml
+
+
+@startuml
+title Collect prepayment for general examination (cash or QR)
+autonumber
+hide footbox
+
+actor Cashier
+
+box "Clinic Management System"
+boundary ": PrepaymentPage (FE)" as FE
+control ": PaymentController" as PaymentController
+control ": PaymentService" as PaymentService
+control ": CitizenInsuranceService" as InsuranceService
+control ": LoadBalancingService" as BalancingService
+database ": InvoiceRepository" as InvoiceRepo
+database ": AppointmentRepository" as AppointmentRepo
+database ": MedicalRecordRepository" as MedicalRecordRepo
+database ": ServiceOrderRepository" as ServiceOrderRepo
+database ": RoomRepository" as RoomRepo
+database ": MainDatabase" as DB
+end box
+
+Cashier -> FE: Confirm prepayment
+activate FE
+FE -> PaymentController: POST /api/payments/prepayment
+activate PaymentController
+PaymentController -> PaymentService: collectPrepayment(prepaymentRequest)
+activate PaymentService
+PaymentService -> InvoiceRepo: existsByMedicalRecord_Appointment_AppointmentIdAndPaymentStatus(appointmentId, "PAID")
+activate InvoiceRepo
+InvoiceRepo -> DB: SELECT EXISTS paid invoice by appointment_id
+activate DB
+return boolean
+return alreadyPaid?
+
+alt appointment already paid
+    return AppException(PAYMENT_ALREADY_PAID)
+    return 4xx error
+    return Show payment failure
+else appointment is unpaid
+    PaymentService -> AppointmentRepo: findById(appointmentId)
+    activate AppointmentRepo
+    AppointmentRepo -> DB: SELECT appointment with selected services
+    activate DB
+    return Appointment or empty
+    return Appointment
+
+    alt cccdNumber is provided and insurance is valid
+        PaymentService -> InsuranceService: calculateInsuranceForServices(cccdNumber, appointment.services)
+        activate InsuranceService
+        return InsuranceBreakdownResponse
+    else no valid insurance
+        note over PaymentService
+        insurancePaid = 0
+        customerPaid = totalServiceFee
+        end note
+    end
+
+    PaymentService -> MedicalRecordRepo: findByAppointment(appointment)
+    activate MedicalRecordRepo
+    MedicalRecordRepo -> DB: SELECT medical_record by appointment_id
+    activate DB
+    return MedicalRecord or null
+    return MedicalRecord or null
+
+    alt medical record does not exist
+        PaymentService -> MedicalRecordRepo: save(new MedicalRecord)
+        activate MedicalRecordRepo
+        MedicalRecordRepo -> DB: INSERT medical_record
+        activate DB
+        return saved MedicalRecord
+        return MedicalRecord
+    end
+
+    alt paymentMethod = CASH
+        note over PaymentService
+        paymentStatus = PAID
+        message = "Thanh toán tiền mặt thành công."
+        end note
+    else paymentMethod = QR or TRANSFER
+        note over PaymentService
+        paymentStatus = PENDING
+        generate invoiceId and paymentUrl
+        end note
+    end
+
+    PaymentService -> InvoiceRepo: save(invoice)
+    activate InvoiceRepo
+    InvoiceRepo -> DB: INSERT invoice
+    activate DB
+    return saved Invoice
+    return Invoice
+
+    loop for each service in appointment.services
+        PaymentService -> ServiceOrderRepo: save(serviceOrder)
+        activate ServiceOrderRepo
+        ServiceOrderRepo -> DB: INSERT service_order
+        activate DB
+        return saved ServiceOrder
+        return ServiceOrder
+    end
+
+    alt paymentStatus = PAID
+        PaymentService -> BalancingService: findOptimalDoctor(deptId, currentDoctorId)
+        activate BalancingService
+        return optimalDoctor or null
+        PaymentService -> AppointmentRepo: save(appointment{status="WAITING", doctor/room updated, priorityScore=0, waitingSince=now})
+        activate AppointmentRepo
+        AppointmentRepo -> DB: UPDATE appointments
+        activate DB
+        return updated Appointment
+        return Appointment
+        opt assigned room exists
+            PaymentService -> RoomRepo: save(room{currentQueueLength + 1})
+            activate RoomRepo
+            RoomRepo -> DB: UPDATE rooms SET current_queue_length = current_queue_length + 1
+            activate DB
+            return updated Room
+            return Room
+        end
+    else paymentStatus = PENDING
+        note over PaymentService
+        return paymentUrl to FE
+        FE will show QR for the cashier
+        end note
+    end
+
+    return PaymentResponse
+    return 200 OK + PaymentResponse
+
+    alt paymentStatus = PAID
+        return Show cash payment success
+    else paymentStatus = PENDING
+        return Show QR code and pending status
+    end
+end
+@enduml
+
+
+@startuml
+title Service catalog management
+autonumber
+hide footbox
+
+actor ClinicManager
+
+box "Clinic Management System"
+boundary ": ServiceCatalogPage (FE)" as FE
+control ": ServiceController" as ServiceController
+control ": ServiceManagementService" as ServiceManagementService
+database ": ServiceRepository" as ServiceRepo
+database ": DepartmentRepository" as DepartmentRepo
+database ": MainDatabase" as DB
+end box
+
+ClinicManager -> FE: Manage service catalog
+activate FE
+
+alt View service list
+    FE -> ServiceController: GET /api/services(includeInactive, category, deptId)
+    activate ServiceController
+    ServiceController -> ServiceManagementService: getVisibleServices(includeInactive)
+    activate ServiceManagementService
+    alt includeInactive = true
+        ServiceManagementService -> ServiceRepo: findAllByIsDeletedFalse()
+        activate ServiceRepo
+        ServiceRepo -> DB: SELECT services where is_deleted = false
+        activate DB
+        return List<Service>
+        return services
+    else includeInactive = false
+        ServiceManagementService -> ServiceRepo: findAllByIsDeletedFalseAndIsActiveTrue()
+        activate ServiceRepo
+        ServiceRepo -> DB: SELECT active services where is_deleted = false
+        activate DB
+        return List<Service>
+        return services
+    end
+    return List<Service>
+    return 200 OK + filtered service list
+    return Render services
+
+else Create new service
+    FE -> ServiceController: POST /api/services
+    activate ServiceController
+    ServiceController -> ServiceManagementService: createService(serviceCatalogRequest)
+    activate ServiceManagementService
+    ServiceManagementService -> ServiceRepo: findAll()
+    activate ServiceRepo
+    ServiceRepo -> DB: SELECT all services for next serviceId
+    activate DB
+    return List<Service>
+    return allServices
+    opt deptId is provided
+        ServiceManagementService -> DepartmentRepo: findByDeptIdAndIsDeletedFalse(deptId)
+        activate DepartmentRepo
+        DepartmentRepo -> DB: SELECT department by dept_id
+        activate DB
+        return Department or empty
+        return Department
+    end
+    ServiceManagementService -> ServiceRepo: save(new Service)
+    activate ServiceRepo
+    ServiceRepo -> DB: INSERT service
+    activate DB
+    return saved Service
+    return Service
+    return Service
+    return 200 OK + created Service
+    return Show create success
+
+else Update existing service
+    FE -> ServiceController: PUT /api/services/{serviceId}
+    activate ServiceController
+    ServiceController -> ServiceManagementService: updateService(serviceId, serviceCatalogRequest)
+    activate ServiceManagementService
+    ServiceManagementService -> ServiceRepo: findByServiceIdAndIsDeletedFalse(serviceId)
+    activate ServiceRepo
+    ServiceRepo -> DB: SELECT service by service_id
+    activate DB
+    return Service or empty
+    return Service
+    opt deptId is provided
+        ServiceManagementService -> DepartmentRepo: findByDeptIdAndIsDeletedFalse(deptId)
+        activate DepartmentRepo
+        DepartmentRepo -> DB: SELECT department by dept_id
+        activate DB
+        return Department or empty
+        return Department
+    end
+    ServiceManagementService -> ServiceRepo: save(updated Service)
+    activate ServiceRepo
+    ServiceRepo -> DB: UPDATE services
+    activate DB
+    return updated Service
+    return Service
+    return Service
+    return 200 OK + updated Service
+    return Show update success
+
+else Lock or unlock service
+    FE -> ServiceController: PATCH /api/services/{serviceId}/status
+    activate ServiceController
+    ServiceController -> ServiceManagementService: updateServiceStatus(serviceId, isActive)
+    activate ServiceManagementService
+    ServiceManagementService -> ServiceRepo: findByServiceIdAndIsDeletedFalse(serviceId)
+    activate ServiceRepo
+    ServiceRepo -> DB: SELECT service by service_id
+    activate DB
+    return Service or empty
+    return Service
+    ServiceManagementService -> ServiceRepo: save(service{isActive})
+    activate ServiceRepo
+    ServiceRepo -> DB: UPDATE services SET is_active = ?
+    activate DB
+    return updated Service
+    return Service
+    return Service
+    return 200 OK + Service
+    return Show status update success
+
+else Soft delete service
+    FE -> ServiceController: DELETE /api/services/{serviceId}
+    activate ServiceController
+    ServiceController -> ServiceManagementService: deleteService(serviceId)
+    activate ServiceManagementService
+    ServiceManagementService -> ServiceRepo: findByServiceIdAndIsDeletedFalse(serviceId)
+    activate ServiceRepo
+    ServiceRepo -> DB: SELECT service by service_id
+    activate DB
+    return Service or empty
+    return Service
+    ServiceManagementService -> ServiceRepo: save(service{isActive=false,isDeleted=true})
+    activate ServiceRepo
+    ServiceRepo -> DB: UPDATE services SET is_active = false, is_deleted = true
+    activate DB
+    return updated Service
+    return Service
+    return void
+    return 200 OK + delete success message
+    return Show delete success
+end
+@enduml

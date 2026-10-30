@@ -1,0 +1,170 @@
+/**
+ * Standardized API Response Structure
+ * All backend APIs return this format
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean; // true: Success, false: Failure
+  message: string; // User-facing message (Vietnamese)
+  data: T | null; // Response data (if available)
+  error: ErrorCode | null; // Error code (Enum Name) for logic handling (if success = false)
+  timestamp: string; // Response timestamp
+}
+
+/**
+ * Error Codes - Must match backend ErrorCode enum
+ * Use these codes for conditional logic, NOT the message strings
+ */
+export enum ErrorCode {
+  // 01. Login
+  LOGIN_INVALID_CREDENTIALS = 'LOGIN_INVALID_CREDENTIALS',
+  LOGIN_ACCOUNT_LOCKED = 'LOGIN_ACCOUNT_LOCKED',
+  LOGIN_SUCCESS = 'LOGIN_SUCCESS',
+
+  // 02. Register
+  REGISTER_EMAIL_EXISTS = 'REGISTER_EMAIL_EXISTS',
+  REGISTER_PHONE_EXISTS = 'REGISTER_PHONE_EXISTS',
+  REGISTER_SUCCESS = 'REGISTER_SUCCESS',
+
+  // 03. Forgot Password
+  FORGOT_PASSWORD_OTP_SENT = 'FORGOT_PASSWORD_OTP_SENT',
+  FORGOT_PASSWORD_INVALID_OTP = 'FORGOT_PASSWORD_INVALID_OTP',
+
+  // 04. Change Password
+  CHANGE_PASSWORD_INCORRECT = 'CHANGE_PASSWORD_INCORRECT',
+  CHANGE_PASSWORD_SUCCESS = 'CHANGE_PASSWORD_SUCCESS',
+
+  // 05. Update Profile
+  UPDATE_PROFILE_MISSING_FIELDS = 'UPDATE_PROFILE_MISSING_FIELDS',
+  UPDATE_PROFILE_SUCCESS = 'UPDATE_PROFILE_SUCCESS',
+
+  // 06. Staff Account List
+  STAFF_LIST_NO_DATA = 'STAFF_LIST_NO_DATA',
+
+  // 07. Create Staff Account
+  CREATE_STAFF_SUCCESS = 'CREATE_STAFF_SUCCESS',
+
+  // 08. Create/Update Account
+  ACCOUNT_DUPLICATE_EMAIL_CCCD = 'ACCOUNT_DUPLICATE_EMAIL_CCCD',
+
+  // 09. Lock/Unlock Account
+  LOCK_UNLOCK_CONFIRM = 'LOCK_UNLOCK_CONFIRM',
+
+  // 10. Delete Account/Item
+  DELETE_CONFIRM = 'DELETE_CONFIRM',
+
+  // 11. Department/Room/Service
+  DEPT_NAME_EXISTS = 'DEPT_NAME_EXISTS',
+  DEPT_NOT_FOUND = 'DEPT_NOT_FOUND',
+  DEPT_HAS_MEMBERS = 'DEPT_HAS_MEMBERS',
+  DEPT_HAS_ROOMS = 'DEPT_HAS_ROOMS',
+  CREATE_DEPT_SUCCESS = 'CREATE_DEPT_SUCCESS',
+  UPDATE_DEPT_SUCCESS = 'UPDATE_DEPT_SUCCESS',
+  DELETE_DEPT_SUCCESS = 'DELETE_DEPT_SUCCESS',
+
+  // 12. Work Shift
+  WORK_SHIFT_OVERLAP = 'WORK_SHIFT_OVERLAP',
+
+  // 13. Patient Search
+  PATIENT_SEARCH_NO_DATA = 'PATIENT_SEARCH_NO_DATA',
+
+  // 14. Create Appointment
+  CREATE_APPOINTMENT_MISSING_FIELDS = 'CREATE_APPOINTMENT_MISSING_FIELDS',
+  CREATE_APPOINTMENT_FULL = 'CREATE_APPOINTMENT_FULL',
+  CREATE_APPOINTMENT_SUCCESS = 'CREATE_APPOINTMENT_SUCCESS',
+
+  // 15. Reschedule Appointment
+  RESCHEDULE_CONFIRM = 'RESCHEDULE_CONFIRM',
+  RESCHEDULE_SUCCESS = 'RESCHEDULE_SUCCESS',
+
+  // 16. Cancel Appointment
+  CANCEL_APPOINTMENT_NOT_ALLOWED = 'CANCEL_APPOINTMENT_NOT_ALLOWED',
+  CANCEL_APPOINTMENT_SUCCESS = 'CANCEL_APPOINTMENT_SUCCESS',
+
+  // 17. Payment
+  PAYMENT_NO_PAYABLE_ITEMS = 'PAYMENT_NO_PAYABLE_ITEMS',
+  PAYMENT_INSURANCE_APPLIED = 'PAYMENT_INSURANCE_APPLIED',
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
+  PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
+
+  // 18. Queue Number
+  QUEUE_NUMBER_ISSUED = 'QUEUE_NUMBER_ISSUED',
+
+  // 19. Visit Schedule
+  VISIT_SCHEDULE_GENERATED = 'VISIT_SCHEDULE_GENERATED',
+
+  // 20. Invoice/Itinerary
+  DOWNLOAD_SUCCESS = 'DOWNLOAD_SUCCESS',
+
+  // 21. Daily Patient List
+  DAILY_LIST_EMPTY = 'DAILY_LIST_EMPTY',
+
+  // 22. Status Update
+  VISIT_STATUS_UPDATED = 'VISIT_STATUS_UPDATED',
+
+  // 23. Upload File
+  UPLOAD_FILE_UNSUPPORTED_TYPE = 'UPLOAD_FILE_UNSUPPORTED_TYPE',
+  UPLOAD_FILE_SIZE_EXCEEDS = 'UPLOAD_FILE_SIZE_EXCEEDS',
+  UPLOAD_FILE_SUCCESS = 'UPLOAD_FILE_SUCCESS',
+
+  // 24. Update Exam Result
+  UPDATE_RESULT_MISSING_FIELDS = 'UPDATE_RESULT_MISSING_FIELDS',
+  UPDATE_RESULT_SUCCESS = 'UPDATE_RESULT_SUCCESS',
+
+  // 25. Specialist Results
+  SPECIALIST_RESULTS_LOADED = 'SPECIALIST_RESULTS_LOADED',
+
+  // 26. Feedback
+  FEEDBACK_NO_DATA = 'FEEDBACK_NO_DATA',
+  SUBMIT_REVIEW_SUCCESS = 'SUBMIT_REVIEW_SUCCESS',
+  RESPOND_FEEDBACK_SUCCESS = 'RESPOND_FEEDBACK_SUCCESS',
+
+  // User Management
+  USER_NOT_EXIST = 'USER_NOT_EXIST',
+  EMAIL_NOT_EXIST = 'EMAIL_NOT_EXIST',
+  PASSWORD_CONFIRMATION_INCORRECT = 'PASSWORD_CONFIRMATION_INCORRECT',
+  UPDATE_EMAIL_SUCCESS = 'UPDATE_EMAIL_SUCCESS',
+  USERNAME_EXISTS = 'USERNAME_EXISTS',
+  ROLE_NOT_FOUND = 'ROLE_NOT_FOUND',
+  USER_DELETED = 'USER_DELETED',
+  USER_ALREADY_DELETED = 'USER_ALREADY_DELETED',
+  USER_ALREADY_LOCKED = 'USER_ALREADY_LOCKED',
+  USER_NOT_LOCKED = 'USER_NOT_LOCKED',
+  DELETE_USER_SUCCESS = 'DELETE_USER_SUCCESS',
+  LOCK_USER_SUCCESS = 'LOCK_USER_SUCCESS',
+  UNLOCK_USER_SUCCESS = 'UNLOCK_USER_SUCCESS',
+
+  // Token Management
+  REFRESH_TOKEN_EXPIRED = 'REFRESH_TOKEN_EXPIRED',
+  REFRESH_TOKEN_INVALID = 'REFRESH_TOKEN_INVALID',
+
+  // Email & OTP
+  EMAIL_SEND_FAILED = 'EMAIL_SEND_FAILED',
+  INVALID_OTP_TYPE = 'INVALID_OTP_TYPE',
+  OTP_EXPIRED = 'OTP_EXPIRED',
+  OTP_INVALID_OR_USED = 'OTP_INVALID_OR_USED',
+  VERIFY_OTP_SUCCESS = 'VERIFY_OTP_SUCCESS',
+
+  // OAuth
+  GOOGLE_TOKEN_FAILED = 'GOOGLE_TOKEN_FAILED',
+
+  // Generic
+  UNCATEGORIZED_EXCEPTION = 'UNCATEGORIZED_EXCEPTION',
+}
+
+/**
+ * Type guard to check if a value is an ErrorCode
+ */
+export function isErrorCode(value: unknown): value is ErrorCode {
+  return typeof value === 'string' && Object.values(ErrorCode).includes(value as ErrorCode);
+}
+
+/** Thông báo tương ứng với ErrorCode (đồng bộ BE) */
+export const ERROR_CODE_MESSAGES: Partial<Record<ErrorCode, string>> = {
+  [ErrorCode.CREATE_DEPT_SUCCESS]: 'Tạo khoa thành công.',
+  [ErrorCode.UPDATE_DEPT_SUCCESS]: 'Cập nhật khoa thành công.',
+  [ErrorCode.DELETE_DEPT_SUCCESS]: 'Xóa khoa thành công.',
+  [ErrorCode.DEPT_NAME_EXISTS]: 'Tên khoa đã tồn tại.',
+  [ErrorCode.DEPT_NOT_FOUND]: 'Không tìm thấy khoa.',
+  [ErrorCode.DEPT_HAS_MEMBERS]: 'Không thể xóa khoa vì còn nhân sự (bác sĩ/y tá) thuộc khoa này.',
+  [ErrorCode.DEPT_HAS_ROOMS]: 'Không thể xóa khoa vì còn phòng thuộc khoa này. Vui lòng xóa hoặc chuyển các phòng trước.',
+};

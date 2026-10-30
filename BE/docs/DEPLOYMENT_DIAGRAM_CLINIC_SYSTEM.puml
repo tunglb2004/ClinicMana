@@ -1,0 +1,81 @@
+@startuml
+title Deployment Diagram - Clinic Management System
+left to right direction
+skinparam shadowing false
+skinparam linetype ortho
+
+actor "End User\n(Admin / Doctor / Staff / Patient)" as user
+
+node "Client Device" as client {
+  artifact "Web Browser" as browser
+}
+
+cloud "Internet" as internet
+
+node "Docker Host" as host {
+  node "frontend container\nclinic-frontend" as feContainer {
+    artifact "Next.js Standalone App\nNode.js 20\nExpose 3000\nMap 80->3000, 3000->3000" as feArtifact
+  }
+
+  node "backend container\nclinic-be" as beContainer {
+    artifact "Spring Boot Application\nJava 17 JRE\nBE-0.0.1-SNAPSHOT.jar\nExpose 8080\nMap 8080->8080" as beArtifact
+  }
+}
+
+database "AWS RDS MySQL\ndb_do_an" as rds
+
+cloud "External Services" as external {
+  node "Cloudinary" as cloudinary
+  node "Email Provider / SMTP" as email
+  node "Citizen Insurance API" as insurance
+  node "SePay" as sepay
+}
+
+user --> browser : uses UI
+browser --> feArtifact : HTTP / HTTPS
+feArtifact --> beArtifact : REST / JSON\nNEXT_PUBLIC_API_URL=/api
+beArtifact --> rds : JDBC / Spring Data JPA
+beArtifact --> cloudinary : file upload
+beArtifact --> email : OTP / notifications
+beArtifact --> insurance : insurance verification / sync
+sepay --> beArtifact : webhook callback
+
+note right of feContainer
+Built from:
+clinic-management-fe/Dockerfile
+
+Runtime image:
+node:20-alpine
+end note
+
+note right of beContainer
+Built from:
+BE/Dockerfile
+
+Build image:
+maven:3.9.9-eclipse-temurin-17-alpine
+
+Runtime image:
+eclipse-temurin:17-jre-alpine
+end note
+
+note bottom of host
+Defined by docker-compose.yml:
+- frontend service
+- backend service
+end note
+
+note bottom of rds
+Backend datasource is configured by:
+- SPRING_DATASOURCE_URL
+- SPRING_DATASOURCE_USERNAME
+- SPRING_DATASOURCE_PASSWORD
+end note
+
+note bottom of beArtifact
+Backend also uses:
+- APP_CORS_ALLOWED_ORIGINS
+- APP_PUBLIC_BASE_URL
+end note
+
+@enduml
